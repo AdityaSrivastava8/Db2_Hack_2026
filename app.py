@@ -484,6 +484,7 @@ workflow_tabs = st.tabs([
     "Vocal Analysis",
     "Evidence Timeline",
     "Haystack Retrieval",
+    "Db2 Database",
 ])
 
 
@@ -1829,9 +1830,6 @@ with workflow_tabs[6]:
             if search_history:
                 with st.expander("Recent search history (this session)", expanded=False):
                     st.caption("The latest 10 searches are kept in this browser session only; history is not saved to disk.")
-                    if st.button("Clear search history", key="rasa_haystack_clear_search_history"):
-                        st.session_state["rasa_haystack_search_history"] = []
-                        st.rerun()
                     for history_index, history_item in enumerate(search_history, start=1):
                         history_filters = []
                         if history_item.get("character") != "All characters":
@@ -1924,3 +1922,89 @@ with workflow_tabs[6]:
             if st.button("Clear retrieval results", key="rasa_haystack_standalone_clear"):
                 st.session_state.pop("rasa_haystack_standalone_results", None)
                 st.rerun()
+
+
+# ---------- Optional Db2 integration ----------
+with workflow_tabs[7]:
+    st.header("Db2 Database")
+    st.caption(
+        "Optional Db2 persistence for audition records. The local JSON library remains the existing source; "
+        "sync is manual and upserts records into Db2 without deleting database rows."
+    )
+
+    try:
+        from db2_store import connection_status, ensure_schema, sync_auditions, fetch_auditions
+        DB2_MODULE_ERROR = None
+    except Exception as exc:
+        connection_status = ensure_schema = sync_auditions = fetch_auditions = None
+        DB2_MODULE_ERROR = f"{type(exc).__name__}: {exc}"
+
+    with st.expander("Connection configuration", expanded=True):
+        st.write("Set these environment variables before starting Streamlit:")
+        st.code(
+            "DB2_HOST=your-db2-host\n"
+            "DB2_PORT=50000\n"
+            "DB2_DATABASE=your-database\n"
+            "DB2_USER=your-username\n"
+            "DB2_PASSWORD=your-password\n"
+            "DB2_SSL=true  # use true if your Db2 service requires TLS",
+            language="text",
+        )
+        st.warning("Do not paste database passwords into chat or commit them to Git. Db2 LUW catalog SQL is used by this initial connector.")
+
+    if DB2_MODULE_ERROR:
+        st.error(f"Could not load the Db2 integration: {DB2_MODULE_ERROR}")
+    else:
+        db2_col1, db2_col2 = st.columns(2)
+        with db2_col1:
+            if st.button("Check Db2 connection", key="rasa_db2_check"):
+                try:
+                    st.success(connection_status())
+                except Exception as exc:
+                    st.error(f"Db2 connection failed: {type(exc).__name__}: {exc}")
+        with db2_col2:
+            if st.button("Initialize audition table", key="rasa_db2_init"):
+                try:
+                    ensure_schema()
+                    st.success("RASA_AUDITIONS table is ready in the current Db2 schema.")
+                except Exception as exc:
+                    st.error(f"Could not initialize Db2 table: {type(exc).__name__}: {exc}")
+
+        db2_auditions = list(st.session_state.get("rasa_audition_comparisons", []))
+        st.write(f"Local audition records available to sync: **{len(db2_auditions)}**")
+        if st.button(
+            "Sync local audition library to Db2",
+            type="primary",
+            key="rasa_db2_sync",
+            disabled=not bool(db2_auditions),
+        ):
+            try:
+                synced_count = sync_auditions(db2_auditions)
+                st.success(f"Synced {synced_count} audition record(s) to Db2. The JSON library was not changed.")
+            except Exception as exc:
+                st.error(f"Db2 sync failed: {type(exc).__name__}: {exc}")
+
+        if st.button("Load recent Db2 records", key="rasa_db2_load"):
+            try:
+                st.session_state["rasa_db2_records"] = fetch_auditions(100)
+            except Exception as exc:
+                st.error(f"Could not load Db2 records: {type(exc).__name__}: {exc}")
+
+        db2_records = st.session_state.get("rasa_db2_records", [])
+        if db2_records:
+            st.write(f"Records currently loaded from Db2: **{len(db2_records)}**")
+            st.dataframe(
+                [{
+                    "Actor": row.get("actor_label"),
+                    "Character": row.get("selected_character"),
+                    "Review status": row.get("reviewer_decision"),
+                    "Shortlisted": row.get("shortlisted"),
+                    "Updated at": row.get("updated_at"),
+                } for row in db2_records],
+                use_container_width=True,
+                hide_index=True,
+            )
+            with st.expander("Inspect full record payload"):
+                st.json(db2_records[0].get("payload", {}))
+        else:
+            st.info("After configuring Db2, check the connection, initialize the table, then sync the local library.")
