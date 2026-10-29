@@ -1,115 +1,140 @@
 
 """
-Smart Audition Search using Haystack 2.x.
+Smart Audition Search for RASA AI.
 
-Searches the existing audition library using BM25 keyword relevance.
-No LLM, API key, or external service is required.
+Uses Haystack 2.x BM25 keyword retrieval to find relevant
+records from the saved audition library.
 """
-
-from typing import Any
 
 from haystack import Document
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 
 
-def _get_value(record: dict, *keys: str, default: str = "") -> str:
-    """Return the first available non-empty value from a record."""
-    for key in keys:
-        value = record.get(key)
-        if value is not None and value != "":
-            if isinstance(value, (dict, list)):
-                return str(value)
-            return str(value)
-    return default
+def _display(value):
+    """Convert a value to searchable text."""
+    if value is None:
+        return ""
+    if isinstance(value, (dict, list, tuple)):
+        return str(value)
+    return str(value)
 
 
-def _record_to_text(record: dict) -> str:
-    """Build searchable text from an audition record."""
-    searchable_fields = [
-        "actor_name",
-        "actor",
-        "name",
-        "video_name",
-        "video_path",
-        "filename",
-        "character",
-        "character_name",
-        "role",
-        "status",
-        "reviewer_status",
-        "reviewer_notes",
-        "notes",
-        "shortlist",
-        "shortlisted",
-        "analysis_method",
-        "evidence_quality",
-        "observations",
-        "metrics",
-        "timestamp",
-        "created_at",
+def _audition_content(item):
+    """Build searchable text using the app's existing record fields."""
+    fields = [
+        ("Actor", item.get("actor_label")),
+        ("Video file", item.get("video_file")),
+        ("Character", item.get("selected_character")),
+        ("Review status", item.get("reviewer_decision", "Not reviewed")),
+        ("Shortlisted", item.get("shortlisted", False)),
+        ("Reviewer notes", item.get("reviewer_notes")),
+        ("Duration seconds", item.get("duration_seconds_estimate")),
+        ("Pose detection rate", item.get("pose_detection_rate")),
+        ("Face detection rate", item.get("face_detection_rate")),
+        (
+            "Mean normalized landmark movement index",
+            item.get("mean_normalized_landmark_movement_index"),
+        ),
+        ("Mean shoulder tilt index", item.get("mean_shoulder_tilt_index")),
+        (
+            "Mean torso lateral offset",
+            item.get("mean_torso_lateral_offset"),
+        ),
+        (
+            "Fraction samples with wrist above shoulder",
+            item.get("fraction_samples_with_wrist_above_shoulder"),
+        ),
+        ("Mean mouth opening ratio", item.get("mean_mouth_opening_ratio")),
+        ("Mouth opening variability", item.get("mouth_opening_variability")),
+        ("Mean eye openness proxy", item.get("mean_eye_openness_proxy")),
+        ("Eye openness variability", item.get("eye_openness_variability")),
+        ("Mean brow eye spacing proxy", item.get("mean_brow_eye_spacing_proxy")),
+        ("Brow eye spacing variability", item.get("brow_eye_spacing_variability")),
+        ("Evidence quality notes", item.get("evidence_quality_notes")),
+        ("Analysis method", item.get("analysis_method")),
     ]
 
-    parts = []
+    parts = [
+        f"{label}: {_display(value)}"
+        for label, value in fields
+        if value not in (None, "", [], {})
+    ]
 
-    for key in searchable_fields:
-        value = record.get(key)
-        if value is not None and value != "":
-            parts.append(f"{key.replace('_', ' ')}: {value}")
+    # Include recorded observations where available.
+    observations = item.get(
+        "sample_observations",
+        item.get("samples", []),
+    )
 
-    # Include other scalar fields so new metadata remains searchable.
-    for key, value in record.items():
-        if key not in searchable_fields and isinstance(
-            value, (str, int, float, bool)
-        ):
-            if value != "":
-                parts.append(f"{key.replace('_', ' ')}: {value}")
+    if isinstance(observations, list):
+        for observation in observations[:100]:
+            if not isinstance(observation, dict):
+                continue
+
+            cue_parts = []
+
+            for key in (
+                "timestamp_seconds",
+                "pose_detected",
+                "movement_since_previous_sample_index",
+                "wrist_above_shoulder",
+                "shoulder_tilt_index",
+                "torso_lateral_offset",
+                "mouth_opening_ratio",
+                "eye_openness_proxy",
+                "brow_eye_spacing_proxy",
+                "model_expression_label",
+            ):
+                if observation.get(key) is not None:
+                    cue_parts.append(
+                        f"{key}: {observation[key]}"
+                    )
+
+            if cue_parts:
+                parts.append(
+                    "Timestamped observation: "
+                    + ", ".join(cue_parts)
+                )
 
     return "\n".join(parts)
 
 
-def search_auditions(
-    auditions: list[dict[str, Any]],
-    query: str,
-    top_k: int = 10,
-) -> list[dict[str, Any]]:
+def search_auditions(items, query, top_k=10):
     """
-    Search audition records using Haystack's in-memory BM25 retriever.
+    Search saved audition dictionaries.
 
     Args:
-        auditions: List of audition dictionaries from your JSON library.
-        query: Search text entered by the user.
-        top_k: Maximum number of results to return.
+        items: List of audition dictionaries.
+        query: Search text.
+        top_k: Maximum number of results.
 
     Returns:
-        A list of dictionaries containing the original audition fields,
-        plus search_score and search_text.
+        A list of dictionaries containing library_index, score,
+        and content. library_index identifies the original record.
     """
     if not isinstance(query, str) or not query.strip():
         return []
 
-    if not auditions:
+    if not items:
         return []
 
     documents = []
-    original_records = {}
 
-    for index, record in enumerate(auditions):
-        if not isinstance(record, dict):
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
             continue
 
-        content = _record_to_text(record)
+        content = _audition_content(item)
+
         if not content.strip():
             continue
 
-        document_id = str(index)
-        original_records[document_id] = record
-
         documents.append(
             Document(
-                id=document_id,
+                id=f"audition-{index}",
                 content=content,
-                meta={"record_index": index},
+                meta={"library_index": index},
             )
         )
 
@@ -119,33 +144,29 @@ def search_auditions(
     document_store = InMemoryDocumentStore()
     document_store.write_documents(documents)
 
-    retriever = InMemoryBM25Retriever(document_store=document_store)
-
-    results = retriever.run(
-        query=query.strip(),
-        top_k=max(1, int(top_k)),
+    retriever = InMemoryBM25Retriever(
+        document_store=document_store
     )
 
-    matches = []
+    response = retriever.run(
+        query=query.strip(),
+        top_k=min(max(1, int(top_k)), len(documents)),
+    )
 
-    for document in results.get("documents", []):
-        record = original_records.get(document.id)
+    results = []
 
-        if record is None:
+    for document in response.get("documents", []):
+        library_index = document.meta.get("library_index")
+
+        if library_index is None:
             continue
 
-        result = dict(record)
-        result["search_score"] = float(document.score or 0.0)
-        result["search_text"] = document.content
-        matches.append(result)
+        results.append(
+            {
+                "library_index": int(library_index),
+                "score": float(document.score or 0.0),
+                "content": document.content,
+            }
+        )
 
-    return matches
-
-
-def search_audition_library(
-    auditions: list[dict[str, Any]],
-    query: str,
-    top_k: int = 10,
-) -> list[dict[str, Any]]:
-    """Compatibility alias for callers using this function name."""
-    return search_auditions(auditions, query, top_k)
+    return results
