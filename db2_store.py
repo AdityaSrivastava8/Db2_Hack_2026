@@ -21,11 +21,11 @@ TABLE_NAME = "RASA_AUDITIONS"
 
 def _required_config() -> dict[str, str]:
     keys = {
-        "host": "DB2_HOST",
-        "port": "DB2_PORT",
-        "database": "DB2_DATABASE",
-        "user": "DB2_USER",
-        "password": "DB2_PASSWORD",
+        "host": "localhost",
+        "port": "50000",
+        "database": "SAMPLE",
+        "user": "db2inst1",
+        "password": "TERABAAP",
     }
     config = {field: os.getenv(env_name, "").strip() for field, env_name in keys.items()}
     config["port"] = config["port"] or "50000"
