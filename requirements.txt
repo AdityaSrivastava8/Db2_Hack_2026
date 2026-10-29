@@ -1,9 +1,10 @@
 streamlit>=1.36,<2
 pypdf>=4.2,<6
-opencv-python-headless>=4.9,<5
+opencv-python-headless==4.11.0.86
 mediapipe==0.10.21
 numpy==1.26.4
 librosa
-fer
+fer==25.10.3
+tensorflow==2.21.0
 haystack-ai>=2.0,<3
 ibm_db>=3.2.6

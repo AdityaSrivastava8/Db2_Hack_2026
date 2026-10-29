@@ -850,7 +850,35 @@ with workflow_tabs[3]:
     actor_label = st.text_input("Actor / audition label", placeholder="e.g., Audition A or actor name", key="rasa_actor_label")
     actor_video = st.file_uploader("Choose actor video", type=["mp4", "mov", "avi", "m4v"], key="actor_video")
     if actor_video:
-        st.video(actor_video.getvalue())
+        video_bytes = actor_video.getvalue()
+        st.video(video_bytes)
+        # Also render a decoded first-frame preview. This remains visible when a browser
+        # cannot play the uploaded video's codec in its HTML5 video element.
+        preview_path = None
+        preview_cap = None
+        try:
+            import cv2
+            with tempfile.NamedTemporaryFile(delete=False, suffix=Path(actor_video.name).suffix or ".mp4") as preview_tmp:
+                preview_tmp.write(video_bytes)
+                preview_path = preview_tmp.name
+            preview_cap = cv2.VideoCapture(preview_path)
+            preview_ok, preview_frame = preview_cap.read()
+            if preview_ok:
+                preview_rgb = cv2.cvtColor(preview_frame, cv2.COLOR_BGR2RGB)
+                st.image(preview_rgb, caption="Video preview · first decoded frame", use_container_width=True)
+            else:
+                st.info("The video player is available, but OpenCV could not decode a preview frame. Try re-exporting the clip as H.264 MP4.")
+        except Exception:
+            # Preview enhancement must never block the rest of the audition workflow.
+            pass
+        finally:
+            if preview_cap is not None:
+                preview_cap.release()
+            if preview_path and os.path.exists(preview_path):
+                try:
+                    os.unlink(preview_path)
+                except OSError:
+                    pass
         st.caption(f"Selected: {actor_video.name} · {actor_video.size / (1024 * 1024):.1f} MB")
         st.warning("For comparisons, use similar framing, lighting, camera distance and audition instructions for every actor.")
         enable_fer = st.checkbox(
@@ -872,12 +900,12 @@ with workflow_tabs[3]:
                         from fer import FER
                         emotion_detector = FER(mtcnn=False)
                         fer_enabled = True
-                    except ImportError:
+                    except Exception as fer_exc:
                         st.warning(
-                            "The optional 'fer' package is not installed in this deployment. "
-                            "Continuing with body-movement and facial-geometry analysis only. "
-                            "To enable expression labels, ensure 'fer' is listed in requirements.txt "
-                            "and redeploy the app."
+                            "FER facial-expression analysis could not be loaded in this deployment "
+                            f"({type(fer_exc).__name__}: {fer_exc}). Continuing with body-movement "
+                            "and facial-geometry analysis only. Check the pinned FER/TensorFlow "
+                            "dependencies in requirements.txt and redeploy."
                         )
                 suffix = Path(actor_video.name).suffix or ".mp4"
                 with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
