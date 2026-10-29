@@ -1,4 +1,10 @@
-.venv/
-__pycache__/
-*.pyc
-.streamlit/secrets.toml
+(
+echo .venv/
+echo .venv312/
+echo __pycache__/
+echo *.pyc
+echo .env
+echo .env.*
+echo !.env.example
+echo .streamlit/secrets.toml
+) > .gitignore
