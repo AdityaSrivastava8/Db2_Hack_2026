@@ -836,7 +836,8 @@ with workflow_tabs[2]:
         st.markdown(f"**Human-review checklist for: {selected_portrayal}**")
         for guide in review_guides[selected_portrayal]:
             st.markdown(f"- {guide}")
-        st.session_state["rasa_character_portrayal_intent"] = selected_portrayal
+        # The selectbox key already stores this value in session_state.
+        # Do not assign to it after the widget has been instantiated.
     else:
         st.info("After screenplay parsing, this section will let you define measurable performance requirements for each detected character.")
 
