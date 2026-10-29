@@ -13,6 +13,13 @@ from pathlib import Path
 import streamlit as st
 from pypdf import PdfReader
 
+try:
+    from smart_audition_search import search_auditions as haystack_search_auditions
+    HAYSTACK_SEARCH_IMPORT_ERROR = None
+except Exception as exc:
+    haystack_search_auditions = None
+    HAYSTACK_SEARCH_IMPORT_ERROR = f"{type(exc).__name__}: {exc}"
+
 st.set_page_config(page_title="RASA AI | Casting Performance Analysis", page_icon="🎬", layout="wide")
 
 st.markdown("""
@@ -1124,6 +1131,71 @@ with workflow_tabs[3]:
         # Browse, filter, and selectively remove saved auditions.
         library_items = list(st.session_state.get("rasa_audition_comparisons", []))
         if library_items:
+            st.markdown("#### Haystack Smart Audition Search")
+            st.caption(
+                "Search saved audition records using Haystack BM25 keyword retrieval. "
+                "This is retrieval over recorded metadata and reviewer notes—not an LLM, talent score, or casting decision."
+            )
+            if haystack_search_auditions is None:
+                st.warning(
+                    "Haystack search is not available in this environment. Install the dependencies from requirements.txt "
+                    "and restart RasaAI. The existing audition library and filters remain available."
+                )
+                with st.expander("Technical detail"):
+                    st.code(HAYSTACK_SEARCH_IMPORT_ERROR or "Haystack import unavailable")
+            else:
+                smart_query_col, smart_topk_col, smart_button_col = st.columns([5, 1, 1])
+                with smart_query_col:
+                    smart_query = st.text_input(
+                        "Smart search query",
+                        key="rasa_haystack_query",
+                        placeholder="e.g. shortlisted auditions with high pose detection and reviewer callback notes",
+                    )
+                with smart_topk_col:
+                    smart_top_k = st.selectbox("Results", [5, 10, 20], index=1, key="rasa_haystack_top_k")
+                with smart_button_col:
+                    st.write("")
+                    run_smart_search = st.button("Search", key="rasa_haystack_search_button", use_container_width=True)
+                if run_smart_search:
+                    if not smart_query.strip():
+                        st.session_state.pop("rasa_haystack_search_results", None)
+                        st.warning("Enter a search query first.")
+                    else:
+                        try:
+                            results = haystack_search_auditions(library_items, smart_query, top_k=smart_top_k)
+                            st.session_state["rasa_haystack_search_results"] = {
+                                "query": smart_query.strip(),
+                                "results": results,
+                            }
+                        except Exception as exc:
+                            st.session_state.pop("rasa_haystack_search_results", None)
+                            st.error(f"Haystack search failed: {type(exc).__name__}: {exc}")
+                smart_search_state = st.session_state.get("rasa_haystack_search_results")
+                smart_result_indices = None
+                if smart_search_state:
+                    result_items = smart_search_state.get("results", [])
+                    smart_result_indices = {int(result["library_index"]) for result in result_items}
+                    st.caption(f"Haystack results for: {smart_search_state.get('query', '')} · {len(result_items)} match(es)")
+                    if result_items:
+                        for rank, result in enumerate(result_items, start=1):
+                            idx = int(result["library_index"])
+                            if 0 <= idx < len(library_items):
+                                result_item = library_items[idx]
+                                result_label = result_item.get("actor_label") or result_item.get("video_file") or f"Audition {idx + 1}"
+                                score = result.get("score")
+                                score_text = f" · BM25 score {score:.3f}" if isinstance(score, (int, float)) else ""
+                                st.write(f"**{rank}. {result_label}** — {result_item.get('selected_character') or 'Unassigned'}{score_text}")
+                                st.caption(
+                                    f"Status: {result_item.get('reviewer_decision', 'Not reviewed')} · "
+                                    f"Shortlisted: {'Yes' if result_item.get('shortlisted', False) else 'No'} · "
+                                    f"Notes: {(result_item.get('reviewer_notes') or 'No reviewer notes')[:220]}"
+                                )
+                    else:
+                        st.info("No matching audition records were returned. Try different words or verify the saved library has records.")
+                    if st.button("Clear smart search", key="rasa_haystack_clear_button"):
+                        st.session_state.pop("rasa_haystack_search_results", None)
+                        st.rerun()
+            st.divider()
             library_characters = sorted({
                 str(item.get("selected_character") or "Unassigned")
                 for item in library_items
@@ -1164,7 +1236,8 @@ with workflow_tabs[3]:
                 matches_shortlist = not shortlist_only or bool(item.get("shortlisted", False))
                 searchable_text = " ".join([actor, video, character, notes]).casefold()
                 matches_search = not normalized_search or normalized_search in searchable_text
-                if matches_character and matches_status and matches_shortlist and matches_search:
+                matches_smart_search = smart_result_indices is None or idx in smart_result_indices
+                if matches_character and matches_status and matches_shortlist and matches_search and matches_smart_search:
                     filtered_items.append((idx, item))
 
             st.caption(f"{len(filtered_items)} saved audition(s) shown · {len(library_items)} total")
