@@ -852,67 +852,72 @@ with workflow_tabs[3]:
     actor_video = st.file_uploader("Choose actor video", type=["mp4", "mov", "avi", "m4v"], key="actor_video")
     if actor_video:
         video_bytes = actor_video.getvalue()
-        video_suffix = Path(actor_video.name).suffix.lower()
-        # Browsers commonly reject MOV/AVI or MP4 files encoded with unsupported codecs.
-        # If FFmpeg is installed, make a browser-friendly H.264/AAC MP4 for playback.
+        video_suffix = Path(actor_video.name).suffix.lower() or ".mp4"
         playable_video_bytes = video_bytes
-        converted_video_path = None
+        video_format = {".mp4": "video/mp4", ".m4v": "video/mp4", ".mov": "video/quicktime", ".avi": "video/x-msvideo"}.get(video_suffix, "video/mp4")
         ffmpeg = shutil.which("ffmpeg")
-        if ffmpeg:
+        if not ffmpeg:
+            st.error("FFmpeg is not installed. Add 'ffmpeg' to packages.txt in the deployed app's root, then redeploy. Automatic browser-compatible conversion is required for reliable previews.")
+        else:
+            source_video_path = None
+            converted_video_path = None
             try:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as converted_tmp:
-                    converted_video_path = converted_tmp.name
-                with tempfile.NamedTemporaryFile(delete=False, suffix=video_suffix or ".mp4") as source_tmp:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=video_suffix) as source_tmp:
                     source_tmp.write(video_bytes)
                     source_video_path = source_tmp.name
-                try:
-                    result = subprocess.run(
-                        [ffmpeg, "-y", "-i", source_video_path, "-vcodec", "libx264", "-pix_fmt", "yuv420p",
-                         "-acodec", "aac", "-movflags", "+faststart", converted_video_path],
-                        capture_output=True, text=True, timeout=120,
-                    )
-                    if result.returncode == 0 and os.path.getsize(converted_video_path) > 0:
-                        playable_video_bytes = Path(converted_video_path).read_bytes()
-                    else:
-                        st.caption("Video conversion was unavailable; showing the original upload. If playback stays at 0:00, re-export as H.264 MP4.")
-                finally:
-                    try: os.unlink(source_video_path)
-                    except OSError: pass
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as converted_tmp:
+                    converted_video_path = converted_tmp.name
+                result = subprocess.run(
+                    [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", source_video_path,
+                     "-map", "0:v:0", "-map", "0:a?", "-c:v", "libx264", "-preset", "ultrafast",
+                     "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart",
+                     converted_video_path],
+                    capture_output=True, text=True, timeout=180,
+                )
+                if result.returncode != 0 or not os.path.exists(converted_video_path) or os.path.getsize(converted_video_path) <= 0:
+                    detail = (result.stderr or "Unknown FFmpeg conversion error").strip()[-1200:]
+                    st.error(f"Video conversion failed; no broken preview was shown. Re-export as H.264 MP4. Details: {detail}")
+                else:
+                    playable_video_bytes = Path(converted_video_path).read_bytes()
+                    video_format = "video/mp4"
             except Exception as convert_exc:
-                st.caption(f"Browser-compatible video conversion unavailable: {type(convert_exc).__name__}")
+                st.error(f"Could not prepare browser-compatible video: {type(convert_exc).__name__}: {convert_exc}")
+            finally:
+                for temp_name in (source_video_path, converted_video_path):
+                    if temp_name:
+                        try:
+                            os.unlink(temp_name)
+                        except OSError:
+                            pass
+
+        # Use the converted MP4 whenever FFmpeg is available; keep preview and analysis on the same bytes.
+        if ffmpeg and playable_video_bytes != video_bytes:
+            st.video(playable_video_bytes, format="video/mp4")
+        elif not ffmpeg:
+            # Original file may still play if the browser supports its container/codec.
+            st.video(video_bytes, format=video_format)
         else:
-            st.caption("For maximum browser compatibility, use H.264 MP4. FFmpeg is not installed here for automatic conversion.")
-        st.video(playable_video_bytes, format="video/mp4")
-        if converted_video_path and os.path.exists(converted_video_path):
-            try:
-                os.unlink(converted_video_path)
-            except OSError:
-                pass
-        # Render a real RGB image from the decoded frame (rather than encoded bytes)
-        # so Streamlit can reliably display the preview.
+            # Conversion may have failed; do not label the original file as MP4.
+            st.video(video_bytes, format=video_format)
+
         preview_path = None
         preview_cap = None
         try:
             import cv2
             import numpy as np
             from PIL import Image
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as preview_tmp:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4" if video_format == "video/mp4" else video_suffix) as preview_tmp:
                 preview_tmp.write(playable_video_bytes)
                 preview_path = preview_tmp.name
             preview_cap = cv2.VideoCapture(preview_path)
             preview_ok, preview_frame = preview_cap.read()
             if preview_ok and preview_frame is not None:
                 rgb_frame = cv2.cvtColor(preview_frame, cv2.COLOR_BGR2RGB)
-                st.image(
-                    Image.fromarray(np.asarray(rgb_frame)),
-                    caption="Video preview · first decoded frame",
-                    use_container_width=True,
-                )
+                st.image(Image.fromarray(np.asarray(rgb_frame)), caption="Video preview · first decoded frame", use_container_width=True)
             else:
-                st.info("OpenCV could not decode a preview frame. Try re-exporting the clip as H.264 MP4.")
+                st.error("The uploaded video could not be decoded into a preview frame. Confirm FFmpeg is installed and try a valid MP4/MOV file.")
         except Exception as preview_exc:
-            # Preview enhancement must never block the rest of the audition workflow.
-            st.caption(f"First-frame preview unavailable: {type(preview_exc).__name__}: {preview_exc}")
+            st.error(f"Video preview failed: {type(preview_exc).__name__}: {preview_exc}")
         finally:
             if preview_cap is not None:
                 preview_cap.release()
@@ -951,7 +956,7 @@ with workflow_tabs[3]:
                         )
                 suffix = Path(actor_video.name).suffix or ".mp4"
                 with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-                    tmp.write(actor_video.getvalue())
+                    tmp.write(playable_video_bytes)
                     temp_path = tmp.name
                 cap = cv2.VideoCapture(temp_path)
                 fps = cap.get(cv2.CAP_PROP_FPS) or 0
@@ -1460,46 +1465,48 @@ with workflow_tabs[4]:
     )
     if audio_file:
         audio_bytes = audio_file.getvalue()
-        audio_suffix = Path(audio_file.name).suffix.lower()
-        # WAV is broadly supported by browsers. Convert other formats when FFmpeg exists.
+        audio_suffix = Path(audio_file.name).suffix.lower() or ".audio"
         playable_audio_bytes = audio_bytes
+        audio_format = {".wav": "audio/wav", ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".flac": "audio/flac", ".ogg": "audio/ogg"}.get(audio_suffix, "application/octet-stream")
         ffmpeg = shutil.which("ffmpeg")
-        if audio_suffix != ".wav" and ffmpeg:
-            source_audio_path = None
-            converted_audio_path = None
+        source_audio_path = None
+        converted_audio_path = None
+        if ffmpeg:
             try:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=audio_suffix or ".audio") as source_tmp:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=audio_suffix) as source_tmp:
                     source_tmp.write(audio_bytes)
                     source_audio_path = source_tmp.name
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as converted_tmp:
                     converted_audio_path = converted_tmp.name
                 result = subprocess.run(
-                    [ffmpeg, "-y", "-i", source_audio_path, "-vn", "-ac", "1", "-ar", "22050", "-c:a", "pcm_s16le", converted_audio_path],
+                    [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", source_audio_path,
+                     "-vn", "-ac", "1", "-ar", "22050", "-c:a", "pcm_s16le", converted_audio_path],
                     capture_output=True, text=True, timeout=120,
                 )
-                if result.returncode == 0 and os.path.getsize(converted_audio_path) > 44:
+                if result.returncode == 0 and os.path.exists(converted_audio_path) and os.path.getsize(converted_audio_path) > 44:
                     playable_audio_bytes = Path(converted_audio_path).read_bytes()
+                    audio_format = "audio/wav"
                 else:
-                    st.caption("Audio conversion failed; showing the original upload. WAV is the safest format.")
+                    detail = (result.stderr or "Unknown FFmpeg conversion error").strip()[-800:]
+                    st.error(f"Audio conversion failed. Try exporting as PCM WAV. Details: {detail}")
             except Exception as convert_exc:
-                st.caption(f"Browser-compatible audio conversion unavailable: {type(convert_exc).__name__}")
+                st.error(f"Audio conversion failed: {type(convert_exc).__name__}: {convert_exc}")
             finally:
                 for temp_name in (source_audio_path, converted_audio_path):
                     if temp_name:
-                        try: os.unlink(temp_name)
-                        except OSError: pass
-        elif audio_suffix != ".wav" and not ffmpeg:
-            st.caption("For reliable playback, upload WAV audio. FFmpeg is not installed here for automatic conversion.")
-        st.audio(playable_audio_bytes, format="audio/wav" if playable_audio_bytes is not audio_bytes else {
-            ".wav": "audio/wav", ".mp3": "audio/mpeg", ".m4a": "audio/mp4",
-            ".flac": "audio/flac", ".ogg": "audio/ogg",
-        }.get(audio_suffix, "audio/wav"))
+                        try:
+                            os.unlink(temp_name)
+                        except OSError:
+                            pass
+        else:
+            st.error("FFmpeg is not installed. Add 'ffmpeg' to packages.txt in the deployed app's root, then redeploy. WAV playback may work without conversion, but automatic normalization is unavailable.")
+        st.audio(playable_audio_bytes, format=audio_format)
         if st.button("Analyze vocal acoustics", type="primary", key="rasa_analyze_vocal"):
             try:
                 import librosa
                 import numpy as np
                 import pandas as pd
-                audio, sr = librosa.load(io.BytesIO(audio_file.getvalue()), sr=22050, mono=True)
+                audio, sr = librosa.load(io.BytesIO(playable_audio_bytes), sr=22050, mono=True)
                 if audio.size == 0:
                     st.error("The uploaded audio contains no readable samples.")
                 else:
