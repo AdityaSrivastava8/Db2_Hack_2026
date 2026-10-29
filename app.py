@@ -851,7 +851,14 @@ with workflow_tabs[3]:
     actor_video = st.file_uploader("Choose actor video", type=["mp4", "mov", "avi", "m4v"], key="actor_video")
     if actor_video:
         video_bytes = actor_video.getvalue()
-        st.video(video_bytes)
+        # Explicit MIME type helps browsers select the correct media decoder.
+        # MP4 files still need a browser-supported codec (H.264 video is safest).
+        video_suffix = Path(actor_video.name).suffix.lower()
+        video_mime = {
+            ".mp4": "video/mp4", ".m4v": "video/mp4",
+            ".mov": "video/quicktime", ".avi": "video/x-msvideo",
+        }.get(video_suffix, "video/mp4")
+        st.video(video_bytes, format=video_mime)
         # Also render a decoded first-frame preview. This remains visible when a browser
         # cannot play the uploaded video's codec in its HTML5 video element.
         preview_path = None
@@ -1408,11 +1415,33 @@ with workflow_tabs[4]:
         "or suitable for a role. For best comparisons, use clean dialogue with minimal music and similar recording conditions."
     )
     st.caption("Audio processing is local. Supported formats depend on the installed librosa/audio backend; WAV is the safest option.")
+    audio_actor_label = st.text_input(
+        "Actor / audition label for vocal analysis",
+        placeholder="e.g., Audition A or actor name",
+        key="rasa_vocal_actor_label",
+    )
+    audio_character_options = [c["name"] for c in story_report.get("story_characters", [])] if story_report else []
+    if audio_character_options:
+        audio_character = st.selectbox(
+            "Character for this vocal audition", ["Unassigned"] + audio_character_options,
+            key="rasa_vocal_character",
+        )
+    else:
+        audio_character = st.text_input(
+            "Character for this vocal audition (optional)",
+            placeholder="e.g., Arjun", key="rasa_vocal_character_text",
+        ) or "Unassigned"
     audio_file = st.file_uploader(
         "Upload audition audio", type=["wav", "mp3", "m4a", "flac", "ogg"], key="rasa_vocal_audio"
     )
     if audio_file:
-        st.audio(audio_file.getvalue())
+        audio_bytes = audio_file.getvalue()
+        audio_suffix = Path(audio_file.name).suffix.lower()
+        audio_mime = {
+            ".wav": "audio/wav", ".mp3": "audio/mpeg", ".m4a": "audio/mp4",
+            ".flac": "audio/flac", ".ogg": "audio/ogg",
+        }.get(audio_suffix, "audio/wav")
+        st.audio(audio_bytes, format=audio_mime)
         if st.button("Analyze vocal acoustics", type="primary", key="rasa_analyze_vocal"):
             try:
                 import librosa
@@ -1466,7 +1495,15 @@ with workflow_tabs[4]:
                         "energy_gap_examples": pauses[:100],
                         "note": "Acoustic descriptors only; low energy is not necessarily silence, and pitch/energy do not establish emotion or acting quality."
                     }
-                    st.session_state["rasa_vocal_analysis"] = {"features": features, "pitch_times": pitch_times.tolist(), "pitch_hz": [float(x) if np.isfinite(x) else None for x in f0], "rms_times": rms_times.tolist(), "rms": rms.tolist()}
+                    st.session_state["rasa_vocal_analysis"] = {
+                        "features": features,
+                        "pitch_times": pitch_times.tolist(),
+                        "pitch_hz": [float(x) if np.isfinite(x) else None for x in f0],
+                        "rms_times": rms_times.tolist(),
+                        "rms": rms.tolist(),
+                        "actor_label": audio_actor_label.strip() or Path(audio_file.name).stem,
+                        "selected_character": audio_character or "Unassigned",
+                    }
             except ImportError:
                 st.error("Vocal analysis needs librosa. In the active Python 3.12 environment, run: python -m pip install librosa")
             except Exception as exc:
@@ -1497,6 +1534,45 @@ with workflow_tabs[4]:
         st.line_chart(rms_df, height=180)
         st.dataframe(pd.DataFrame([vf]), use_container_width=True, hide_index=True)
         st.download_button("Download vocal analysis (JSON)", json.dumps(vf, indent=2, ensure_ascii=False), "rasaai_vocal_analysis.json", "application/json", key="rasa_vocal_json")
+        if st.button("Save vocal analysis to audition library / Haystack", type="primary", key="rasa_save_vocal_analysis"):
+            saved_items = [dict(item) for item in st.session_state.get("rasa_audition_comparisons", [])]
+            actor_value = vocal_result.get("actor_label") or Path(vf.get("audio_file", "audition_audio")).stem
+            character_value = vocal_result.get("selected_character") or "Unassigned"
+            duplicate_index = next((i for i, item in enumerate(saved_items)
+                if item.get("analysis_type") == "vocal"
+                and item.get("audio_file") == vf.get("audio_file")
+                and item.get("actor_label") == actor_value
+                and item.get("selected_character") == character_value), None)
+            vocal_record = {
+                "analysis_type": "vocal",
+                "actor_label": actor_value,
+                "selected_character": character_value,
+                "audio_file": vf.get("audio_file"),
+                "video_file": "",
+                "vocal_analysis": vf,
+                "median_pitch_hz": vf.get("median_pitch_hz"),
+                "pitch_10th_percentile_hz": vf.get("pitch_10th_percentile_hz"),
+                "pitch_90th_percentile_hz": vf.get("pitch_90th_percentile_hz"),
+                "pitch_standard_deviation_hz": vf.get("pitch_standard_deviation_hz"),
+                "voiced_frame_fraction": vf.get("voiced_frame_fraction"),
+                "mean_rms_energy": vf.get("mean_rms_energy"),
+                "energy_variation_std": vf.get("energy_variation_std"),
+                "estimated_low_energy_seconds": vf.get("estimated_low_energy_seconds"),
+                "detected_energy_gaps_over_0_35s": vf.get("detected_energy_gaps_over_0_35s"),
+                "reviewer_decision": "Not reviewed",
+                "shortlisted": False,
+                "reviewer_notes": "",
+                "analysis_method": "Local librosa acoustic analysis; no speech transcription or emotion inference",
+                "saved_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+            }
+            if duplicate_index is not None:
+                saved_items[duplicate_index] = {**saved_items[duplicate_index], **vocal_record}
+            else:
+                saved_items.append(vocal_record)
+            if save_audition_library(saved_items):
+                st.session_state["rasa_audition_comparisons"] = saved_items
+                record_audition_activity("Vocal analysis saved", vocal_record, "Saved vocal acoustics for Haystack keyword retrieval.")
+                st.success("Vocal analysis saved to the local library. It is now available in Haystack Retrieval.")
 
         # Export a compact, timestamped evidence table so reviewers can inspect
         # acoustic measurements alongside the actual recording. This is not speech
@@ -1922,7 +1998,13 @@ with workflow_tabs[6]:
                         score = result.get("score")
                         score_label = f" · BM25 score {score:.3f}" if isinstance(score, (int, float)) else ""
                         with st.expander(f"{rank}. {label} — {character}{score_label}", expanded=(rank == 1)):
-                            st.write(f"**Video:** {item.get('video_file') or 'Not available'}")
+                            if item.get("analysis_type") == "vocal":
+                                st.write(f"**Audio:** {item.get('audio_file') or 'Not available'}")
+                                st.write(f"**Median pitch:** {item.get('median_pitch_hz', 'N/A')} Hz")
+                                st.write(f"**Energy gaps:** {item.get('detected_energy_gaps_over_0_35s', 'N/A')}")
+                            else:
+                                st.write(f"**Video:** {item.get('video_file') or 'Not available'}")
+                            st.write(f"**Analysis type:** {item.get('analysis_type') or 'video'}")
                             st.write(f"**Review status:** {item.get('reviewer_decision') or 'Not reviewed'}")
                             st.write(f"**Shortlisted:** {'Yes' if item.get('shortlisted', False) else 'No'}")
                             st.write(f"**Reviewer notes:** {item.get('reviewer_notes') or 'No reviewer notes'}")
