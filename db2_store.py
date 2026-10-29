@@ -19,6 +19,21 @@ except ImportError:  # Keep RASA AI usable when the optional driver is not insta
 TABLE_NAME = "RASA_AUDITIONS"
 
 
+def _config_value(name: str, default: str = "") -> str:
+    """Read config from environment first, then local Streamlit Secrets."""
+    value = os.getenv(name, "").strip()
+    if value:
+        return value
+
+    # Keep this module usable outside Streamlit, too.
+    try:
+        import streamlit as st
+        secret_value = st.secrets.get(name, default)
+    except Exception:
+        secret_value = default
+    return str(secret_value).strip()
+
+
 def _required_config() -> dict[str, str]:
     keys = {
         "host": "DB2_HOST",
@@ -27,7 +42,7 @@ def _required_config() -> dict[str, str]:
         "user": "DB2_USER",
         "password": "DB2_PASSWORD",
     }
-    config = {field: os.getenv(env_name, "").strip() for field, env_name in keys.items()}
+    config = {field: _config_value(env_name) for field, env_name in keys.items()}
     config["port"] = config["port"] or "50000"
     missing = [keys[field] for field, value in config.items() if not value]
     if missing:
@@ -49,7 +64,7 @@ def _connect():
         f"UID={config['user']}",
         f"PWD={config['password']}",
     ]
-    if os.getenv("DB2_SSL", "false").strip().lower() in {"1", "true", "yes", "on"}:
+    if _config_value("DB2_SSL", "false").lower() in {"1", "true", "yes", "on"}:
         parts.append("SECURITY=SSL")
     connection = ibm_db.connect(";".join(parts) + ";", "", "")
     return connection
