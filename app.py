@@ -864,13 +864,23 @@ with workflow_tabs[3]:
             preview_cap = cv2.VideoCapture(preview_path)
             preview_ok, preview_frame = preview_cap.read()
             if preview_ok:
-                preview_rgb = cv2.cvtColor(preview_frame, cv2.COLOR_BGR2RGB)
-                st.image(preview_rgb, caption="Video preview · first decoded frame", use_container_width=True)
+                # Encode explicitly to JPEG bytes. This avoids browser rendering issues
+                # with raw NumPy frame arrays and keeps the preview independent of st.video.
+                encode_ok, preview_encoded = cv2.imencode(".jpg", preview_frame)
+                if encode_ok:
+                    st.image(
+                        preview_encoded.tobytes(),
+                        caption="Video preview · first decoded frame",
+                        output_format="JPEG",
+                        use_container_width=True,
+                    )
+                else:
+                    st.info("OpenCV decoded the video, but could not encode a preview image.")
             else:
                 st.info("The video player is available, but OpenCV could not decode a preview frame. Try re-exporting the clip as H.264 MP4.")
-        except Exception:
+        except Exception as preview_exc:
             # Preview enhancement must never block the rest of the audition workflow.
-            pass
+            st.caption(f"First-frame preview unavailable: {type(preview_exc).__name__}: {preview_exc}")
         finally:
             if preview_cap is not None:
                 preview_cap.release()

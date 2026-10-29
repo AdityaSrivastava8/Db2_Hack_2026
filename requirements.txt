@@ -5,7 +5,7 @@ mediapipe==0.10.21
 numpy==1.26.4
 protobuf==4.25.9
 librosa
-fer==25.10.3
+fer==22.5.1
 tensorflow==2.19.1
 haystack-ai>=2.0,<3
 ibm_db>=3.2.6
