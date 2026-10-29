@@ -1808,9 +1808,44 @@ with workflow_tabs[6]:
                         "candidate_count": len(candidate_records),
                         "results": mapped_results,
                     }
+
+                    # Keep a short session-only history so users can track recent searches.
+                    history = st.session_state.get("rasa_haystack_search_history", [])
+                    history.insert(0, {
+                        "query": retrieval_query.strip(),
+                        "character": retrieval_character,
+                        "status": retrieval_status,
+                        "shortlisted_only": retrieval_shortlisted_only,
+                        "candidate_count": len(candidate_records),
+                        "result_count": len(mapped_results),
+                        "searched_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    })
+                    st.session_state["rasa_haystack_search_history"] = history[:10]
                 except Exception as exc:
                     st.session_state.pop("rasa_haystack_standalone_results", None)
                     st.error(f"Haystack retrieval failed: {type(exc).__name__}: {exc}")
+
+            search_history = st.session_state.get("rasa_haystack_search_history", [])
+            if search_history:
+                with st.expander("Recent search history (this session)", expanded=False):
+                    st.caption("The latest 10 searches are kept in this browser session only; history is not saved to disk.")
+                    if st.button("Clear search history", key="rasa_haystack_clear_search_history"):
+                        st.session_state["rasa_haystack_search_history"] = []
+                        st.rerun()
+                    for history_index, history_item in enumerate(search_history, start=1):
+                        history_filters = []
+                        if history_item.get("character") != "All characters":
+                            history_filters.append(f"Character: {history_item['character']}")
+                        if history_item.get("status") != "All statuses":
+                            history_filters.append(f"Status: {history_item['status']}")
+                        if history_item.get("shortlisted_only"):
+                            history_filters.append("Shortlisted only")
+                        st.write(
+                            f"**{history_index}. {history_item.get('query', '')}** — "
+                            f"{history_item.get('result_count', 0)} result(s) · "
+                            f"{history_item.get('searched_at', '')}"
+                        )
+                        st.caption("Filters: " + (" · ".join(history_filters) if history_filters else "None"))
 
             retrieval_state = st.session_state.get("rasa_haystack_standalone_results", {})
             if retrieval_state.get("query"):
@@ -1849,6 +1884,39 @@ with workflow_tabs[6]:
                             st.write(f"**Reviewer notes:** {item.get('reviewer_notes') or 'No reviewer notes'}")
                             st.caption("Matching indexed evidence")
                             st.text(str(result.get("content", ""))[:2500])
+
+                    # Export only the currently displayed retrieval results.
+                    export_rows = []
+                    for rank, result in enumerate(results, start=1):
+                        try:
+                            index = int(result.get("library_index", -1))
+                        except (TypeError, ValueError):
+                            continue
+                        if not 0 <= index < len(saved_auditions):
+                            continue
+                        item = saved_auditions[index]
+                        export_rows.append({
+                            "Rank": rank,
+                            "Actor": item.get("actor_label") or "",
+                            "Video file": item.get("video_file") or "",
+                            "Character": item.get("selected_character") or "Unassigned",
+                            "Review status": item.get("reviewer_decision") or "Not reviewed",
+                            "Shortlisted": bool(item.get("shortlisted", False)),
+                            "Reviewer notes": item.get("reviewer_notes") or "",
+                            "BM25 score": result.get("score", ""),
+                        })
+                    if export_rows:
+                        csv_buffer = io.StringIO(newline="")
+                        writer = csv.DictWriter(csv_buffer, fieldnames=list(export_rows[0].keys()))
+                        writer.writeheader()
+                        writer.writerows(export_rows)
+                        st.download_button(
+                            "Download results as CSV",
+                            data="\ufeff" + csv_buffer.getvalue(),
+                            file_name="rasa_haystack_retrieval_results.csv",
+                            mime="text/csv",
+                            key="rasa_haystack_download_results",
+                        )
                 st.caption(
                     "BM25 is keyword-based retrieval. It does not reliably understand every paraphrase, "
                     "and its score is not a measure of acting quality or role suitability."
