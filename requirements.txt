@@ -6,5 +6,4 @@ numpy>=1.26,<2
 librosa
 fer
 haystack-ai>=2.0,<3
-
 ibm_db>=3.2.6
