@@ -483,6 +483,7 @@ workflow_tabs = st.tabs([
     "Video Analysis",
     "Vocal Analysis",
     "Evidence Timeline",
+    "Haystack Retrieval",
 ])
 
 
@@ -1131,70 +1132,6 @@ with workflow_tabs[3]:
         # Browse, filter, and selectively remove saved auditions.
         library_items = list(st.session_state.get("rasa_audition_comparisons", []))
         if library_items:
-            st.markdown("#### Haystack Smart Audition Search")
-            st.caption(
-                "Search saved audition records using Haystack BM25 keyword retrieval. "
-                "This is retrieval over recorded metadata and reviewer notes—not an LLM, talent score, or casting decision."
-            )
-            if haystack_search_auditions is None:
-                st.warning(
-                    "Haystack search is not available in this environment. Install the dependencies from requirements.txt "
-                    "and restart RasaAI. The existing audition library and filters remain available."
-                )
-                with st.expander("Technical detail"):
-                    st.code(HAYSTACK_SEARCH_IMPORT_ERROR or "Haystack import unavailable")
-            else:
-                smart_query_col, smart_topk_col, smart_button_col = st.columns([5, 1, 1])
-                with smart_query_col:
-                    smart_query = st.text_input(
-                        "Smart search query",
-                        key="rasa_haystack_query",
-                        placeholder="e.g. shortlisted auditions with high pose detection and reviewer callback notes",
-                    )
-                with smart_topk_col:
-                    smart_top_k = st.selectbox("Results", [5, 10, 20], index=1, key="rasa_haystack_top_k")
-                with smart_button_col:
-                    st.write("")
-                    run_smart_search = st.button("Search", key="rasa_haystack_search_button", use_container_width=True)
-                if run_smart_search:
-                    if not smart_query.strip():
-                        st.session_state.pop("rasa_haystack_search_results", None)
-                        st.warning("Enter a search query first.")
-                    else:
-                        try:
-                            results = haystack_search_auditions(library_items, smart_query, top_k=smart_top_k)
-                            st.session_state["rasa_haystack_search_results"] = {
-                                "query": smart_query.strip(),
-                                "results": results,
-                            }
-                        except Exception as exc:
-                            st.session_state.pop("rasa_haystack_search_results", None)
-                            st.error(f"Haystack search failed: {type(exc).__name__}: {exc}")
-                smart_search_state = st.session_state.get("rasa_haystack_search_results")
-                smart_result_indices = None
-                if smart_search_state:
-                    result_items = smart_search_state.get("results", [])
-                    smart_result_indices = {int(result["library_index"]) for result in result_items}
-                    st.caption(f"Haystack results for: {smart_search_state.get('query', '')} · {len(result_items)} match(es)")
-                    if result_items:
-                        for rank, result in enumerate(result_items, start=1):
-                            idx = int(result["library_index"])
-                            if 0 <= idx < len(library_items):
-                                result_item = library_items[idx]
-                                result_label = result_item.get("actor_label") or result_item.get("video_file") or f"Audition {idx + 1}"
-                                score = result.get("score")
-                                score_text = f" · BM25 score {score:.3f}" if isinstance(score, (int, float)) else ""
-                                st.write(f"**{rank}. {result_label}** — {result_item.get('selected_character') or 'Unassigned'}{score_text}")
-                                st.caption(
-                                    f"Status: {result_item.get('reviewer_decision', 'Not reviewed')} · "
-                                    f"Shortlisted: {'Yes' if result_item.get('shortlisted', False) else 'No'} · "
-                                    f"Notes: {(result_item.get('reviewer_notes') or 'No reviewer notes')[:220]}"
-                                )
-                    else:
-                        st.info("No matching audition records were returned. Try different words or verify the saved library has records.")
-                    if st.button("Clear smart search", key="rasa_haystack_clear_button"):
-                        st.session_state.pop("rasa_haystack_search_results", None)
-                        st.rerun()
             st.divider()
             library_characters = sorted({
                 str(item.get("selected_character") or "Unassigned")
@@ -1762,3 +1699,94 @@ with workflow_tabs[5]:
                 "Audio/video timestamps must refer to the same recording timeline. This tool aligns measurements by time; "
                 "it does not verify lip-sync or infer emotional meaning. Review the original footage and audio."
             )
+
+
+# ---------- Standalone Haystack Retrieval tab ----------
+with workflow_tabs[6]:
+    st.header("Haystack Retrieval")
+    st.caption(
+        "Search saved audition reports using Haystack BM25 keyword retrieval. "
+        "Results are relevant recorded evidence for human review, not casting recommendations."
+    )
+
+    saved_auditions = list(st.session_state.get("rasa_audition_comparisons", []))
+    if not saved_auditions:
+        st.info(
+            "No saved auditions are available yet. Go to Video Analysis, analyze a clip, "
+            "and click **Add this audition to comparison**. Then return here to search it."
+        )
+    else:
+        st.write(f"Saved audition records available: **{len(saved_auditions)}**")
+        if haystack_search_auditions is None:
+            st.error(
+                "Haystack is not available in this deployment. Check that `haystack-ai>=2.0,<3` "
+                "is in requirements.txt and review the deployment logs."
+            )
+            with st.expander("Import error details"):
+                st.code(HAYSTACK_SEARCH_IMPORT_ERROR or "Haystack import unavailable")
+        else:
+            query_col, limit_col = st.columns([5, 1])
+            with query_col:
+                retrieval_query = st.text_input(
+                    "Search saved audition evidence",
+                    placeholder="e.g. callback with reviewer notes about hand gestures",
+                    key="rasa_haystack_standalone_query",
+                )
+            with limit_col:
+                retrieval_limit = st.selectbox(
+                    "Max results", [5, 10, 20], index=1,
+                    key="rasa_haystack_standalone_limit",
+                )
+            search_clicked = st.button(
+                "Retrieve auditions", type="primary",
+                key="rasa_haystack_standalone_button",
+                disabled=not bool(retrieval_query.strip()),
+            )
+            if search_clicked:
+                try:
+                    retrieval_results = haystack_search_auditions(
+                        saved_auditions, retrieval_query.strip(), top_k=retrieval_limit
+                    )
+                    st.session_state["rasa_haystack_standalone_results"] = {
+                        "query": retrieval_query.strip(),
+                        "results": retrieval_results,
+                    }
+                except Exception as exc:
+                    st.session_state.pop("rasa_haystack_standalone_results", None)
+                    st.error(f"Haystack retrieval failed: {type(exc).__name__}: {exc}")
+
+            retrieval_state = st.session_state.get("rasa_haystack_standalone_results", {})
+            if retrieval_state.get("query"):
+                st.subheader("Retrieved results")
+                st.caption(f"Query: {retrieval_state['query']}")
+                results = retrieval_state.get("results", [])
+                if not results:
+                    st.info("No matching records were returned. Try different keywords.")
+                else:
+                    st.write(f"Found **{len(results)}** matching audition(s).")
+                    for rank, result in enumerate(results, start=1):
+                        try:
+                            index = int(result.get("library_index", -1))
+                        except (TypeError, ValueError):
+                            continue
+                        if not 0 <= index < len(saved_auditions):
+                            continue
+                        item = saved_auditions[index]
+                        label = item.get("actor_label") or item.get("video_file") or f"Audition {index + 1}"
+                        character = item.get("selected_character") or "Unassigned"
+                        score = result.get("score")
+                        score_label = f" · BM25 score {score:.3f}" if isinstance(score, (int, float)) else ""
+                        with st.expander(f"{rank}. {label} — {character}{score_label}", expanded=(rank == 1)):
+                            st.write(f"**Video:** {item.get('video_file') or 'Not available'}")
+                            st.write(f"**Review status:** {item.get('reviewer_decision', 'Not reviewed')}")
+                            st.write(f"**Shortlisted:** {'Yes' if item.get('shortlisted', False) else 'No'}")
+                            st.write(f"**Reviewer notes:** {item.get('reviewer_notes') or 'No reviewer notes'}")
+                            st.caption("Matching indexed evidence")
+                            st.text(str(result.get("content", ""))[:2500])
+                st.caption(
+                    "BM25 is keyword-based retrieval. It does not reliably understand every paraphrase, "
+                    "and its score is not a measure of acting quality or role suitability."
+                )
+            if st.button("Clear retrieval results", key="rasa_haystack_standalone_clear"):
+                st.session_state.pop("rasa_haystack_standalone_results", None)
+                st.rerun()
