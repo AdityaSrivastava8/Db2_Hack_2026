@@ -1725,6 +1725,33 @@ with workflow_tabs[6]:
             with st.expander("Import error details"):
                 st.code(HAYSTACK_SEARCH_IMPORT_ERROR or "Haystack import unavailable")
         else:
+            # Filters are applied before BM25 retrieval so the result limit is
+            # filled from the selected subset rather than filtering a small top-k afterward.
+            character_options = sorted({
+                str(item.get("selected_character") or "Unassigned")
+                for item in saved_auditions
+            }, key=str.casefold)
+            status_options = sorted({
+                str(item.get("reviewer_decision") or "Not reviewed")
+                for item in saved_auditions
+            }, key=str.casefold)
+
+            filter_col1, filter_col2, filter_col3 = st.columns([2, 2, 2])
+            with filter_col1:
+                retrieval_character = st.selectbox(
+                    "Character", ["All characters"] + character_options,
+                    key="rasa_haystack_character_filter",
+                )
+            with filter_col2:
+                retrieval_status = st.selectbox(
+                    "Review status", ["All statuses"] + status_options,
+                    key="rasa_haystack_status_filter",
+                )
+            with filter_col3:
+                retrieval_shortlisted_only = st.checkbox(
+                    "Shortlisted only", key="rasa_haystack_shortlisted_filter"
+                )
+
             query_col, limit_col = st.columns([5, 1])
             with query_col:
                 retrieval_query = st.text_input(
@@ -1737,6 +1764,7 @@ with workflow_tabs[6]:
                     "Max results", [5, 10, 20], index=1,
                     key="rasa_haystack_standalone_limit",
                 )
+
             search_clicked = st.button(
                 "Retrieve auditions", type="primary",
                 key="rasa_haystack_standalone_button",
@@ -1744,12 +1772,41 @@ with workflow_tabs[6]:
             )
             if search_clicked:
                 try:
+                    candidate_records = []
+                    original_indices = []
+                    for original_index, item in enumerate(saved_auditions):
+                        character = str(item.get("selected_character") or "Unassigned")
+                        status = str(item.get("reviewer_decision") or "Not reviewed")
+                        if retrieval_character != "All characters" and character != retrieval_character:
+                            continue
+                        if retrieval_status != "All statuses" and status != retrieval_status:
+                            continue
+                        if retrieval_shortlisted_only and not bool(item.get("shortlisted", False)):
+                            continue
+                        candidate_records.append(item)
+                        original_indices.append(original_index)
+
                     retrieval_results = haystack_search_auditions(
-                        saved_auditions, retrieval_query.strip(), top_k=retrieval_limit
-                    )
+                        candidate_records, retrieval_query.strip(), top_k=retrieval_limit
+                    ) if candidate_records else []
+
+                    # The helper returns indices relative to candidate_records.
+                    # Convert them back to indices in the full saved audition library.
+                    mapped_results = []
+                    for result in retrieval_results:
+                        candidate_index = int(result.get("library_index", -1))
+                        if 0 <= candidate_index < len(original_indices):
+                            mapped = dict(result)
+                            mapped["library_index"] = original_indices[candidate_index]
+                            mapped_results.append(mapped)
+
                     st.session_state["rasa_haystack_standalone_results"] = {
                         "query": retrieval_query.strip(),
-                        "results": retrieval_results,
+                        "character": retrieval_character,
+                        "status": retrieval_status,
+                        "shortlisted_only": retrieval_shortlisted_only,
+                        "candidate_count": len(candidate_records),
+                        "results": mapped_results,
                     }
                 except Exception as exc:
                     st.session_state.pop("rasa_haystack_standalone_results", None)
@@ -1759,9 +1816,18 @@ with workflow_tabs[6]:
             if retrieval_state.get("query"):
                 st.subheader("Retrieved results")
                 st.caption(f"Query: {retrieval_state['query']}")
+                filter_summary = []
+                if retrieval_state.get("character", "All characters") != "All characters":
+                    filter_summary.append(f"Character: {retrieval_state['character']}")
+                if retrieval_state.get("status", "All statuses") != "All statuses":
+                    filter_summary.append(f"Status: {retrieval_state['status']}")
+                if retrieval_state.get("shortlisted_only"):
+                    filter_summary.append("Shortlisted only")
+                st.caption("Filters: " + (" · ".join(filter_summary) if filter_summary else "None"))
+                st.caption(f"Searched {retrieval_state.get('candidate_count', 0)} audition(s) matching the filters.")
                 results = retrieval_state.get("results", [])
                 if not results:
-                    st.info("No matching records were returned. Try different keywords.")
+                    st.info("No matching records were returned. Try different keywords or broaden the filters.")
                 else:
                     st.write(f"Found **{len(results)}** matching audition(s).")
                     for rank, result in enumerate(results, start=1):
@@ -1778,7 +1844,7 @@ with workflow_tabs[6]:
                         score_label = f" · BM25 score {score:.3f}" if isinstance(score, (int, float)) else ""
                         with st.expander(f"{rank}. {label} — {character}{score_label}", expanded=(rank == 1)):
                             st.write(f"**Video:** {item.get('video_file') or 'Not available'}")
-                            st.write(f"**Review status:** {item.get('reviewer_decision', 'Not reviewed')}")
+                            st.write(f"**Review status:** {item.get('reviewer_decision') or 'Not reviewed'}")
                             st.write(f"**Shortlisted:** {'Yes' if item.get('shortlisted', False) else 'No'}")
                             st.write(f"**Reviewer notes:** {item.get('reviewer_notes') or 'No reviewer notes'}")
                             st.caption("Matching indexed evidence")
