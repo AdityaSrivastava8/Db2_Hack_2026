@@ -766,7 +766,7 @@ with workflow_tabs[2]:
             "hand gestures": ["Frequent hands above shoulder level"],
         }
         role_requirements = {}
-        for character in story_report["story_characters"]:
+        for idx, character in enumerate(story_report["story_characters"]):
             with st.expander(f"Requirements for {character['name']}", expanded=(len(story_report["story_characters"]) == 1)):
                 detected_cues = character.get("performance_requirements", [])
                 suggested = []
@@ -781,7 +781,7 @@ with workflow_tabs[2]:
                     "Select measurable audition targets",
                     requirement_options,
                     default=suggested,
-                    key="role_requirements_" + re.sub(r"[^a-zA-Z0-9_]", "_", character["name"]),
+                    key=f"role_requirements_{idx}_" + re.sub(r"[^a-zA-Z0-9_]", "_", character["name"]),
                     help="Targets map only to rough video measurements. They do not determine talent, emotion, personality, or casting suitability.",
                 )
         st.session_state["rasa_role_requirements"] = role_requirements
