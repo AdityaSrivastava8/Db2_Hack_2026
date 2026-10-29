@@ -1,8 +1,8 @@
 streamlit>=1.36,<2
 pypdf>=4.2,<6
 opencv-python-headless>=4.9,<5
-mediapipe>=0.10.14,<0.11
-numpy>=1.26,<2
+mediapipe==0.10.21
+numpy==1.26.4
 librosa
 fer
 haystack-ai>=2.0,<3

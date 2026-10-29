@@ -866,19 +866,12 @@ with workflow_tabs[3]:
                 import mediapipe as mp
                 import numpy as np
                 emotion_detector = None
-                fer_enabled = False
                 if enable_fer:
                     try:
                         from fer import FER
                         emotion_detector = FER(mtcnn=False)
-                        fer_enabled = True
-                    except ImportError:
-                        st.warning(
-                            "The optional 'fer' package is not installed in this deployment. "
-                            "Continuing with body-movement and facial-geometry analysis only. "
-                            "To enable expression labels, ensure 'fer' is listed in requirements.txt "
-                            "and redeploy the app."
-                        )
+                    except ImportError as exc:
+                        raise ImportError("Optional facial-expression analysis requires the 'fer' package. Install it in the active environment with: python -m pip install fer") from exc
                 suffix = Path(actor_video.name).suffix or ".mp4"
                 with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
                     tmp.write(actor_video.getvalue())
@@ -1022,7 +1015,7 @@ with workflow_tabs[3]:
                         "mean_torso_lateral_offset": round(float(np.mean(torso_offsets)), 4) if torso_offsets else None,
                         "fraction_samples_with_wrist_above_shoulder": round(sum(wrist_above) / len(wrist_above), 3) if wrist_above else None,
                         "sample_observations": observations,
-                        "facial_expression_model_enabled": bool(fer_enabled),
+                        "facial_expression_model_enabled": bool(enable_fer),
                         "facial_expression_model_mean_scores": {label: round(float(np.mean(scores)), 4) for label, scores in emotion_scores_by_label.items()},
                         "facial_expression_predictions": emotion_predictions,
                         "interpretation_limit": "Facial geometry metrics are not emotion labels. Optional FER model labels are probabilistic visual classifications and can be wrong due to lighting, camera angle, speech, occlusion, culture, individual differences and model bias. They do not diagnose depression or establish internal emotion, acting ability, personality, or role suitability. Use timestamped predictions as prompts for human review only."
