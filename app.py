@@ -312,7 +312,7 @@ $env:DB2_SSL = "true"</pre>
     """
     # Render the complete introduction as one balanced HTML block.
     # Normalize indentation so HTML is rendered as markup, not as a code block.
-    intro_html = "\\n".join(line.lstrip() for line in intro_html.splitlines()).strip()
+    intro_html = "\n".join(line.lstrip() for line in intro_html.splitlines()).strip()
     st.markdown(intro_html, unsafe_allow_html=True)
 
 
