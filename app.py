@@ -136,195 +136,292 @@ hr {
 
 # ---------- RASA AI Private Vault authentication + public introduction ----------
 def _render_intro_page():
-    st.markdown("""
-    <div class="rasa-hero">
-      <div class="rasa-eyebrow">AUDITION INTELLIGENCE · CASTING SUPPORT</div>
-      <h1>🎬 RASA AI</h1>
-      <h2>Audition Intelligence &amp; Casting Support</h2>
-      <p>Explore performances through screenplay context and observable evidence.</p>
+    # One continuous, scrollable introduction panel matching the Detective AI layout.
+    artwork_path = Path(__file__).resolve().parent / "assets" / "navarasa_artwork.webp"
+    intro_html = f"""
+    <div class="detective-intro-panel">
+      <h1>🎬 RASA AI: Audition Intelligence &amp; Casting Support</h1>
+      <p class="intro-lead">
+        RASA AI helps filmmakers and casting teams organize screenplay context, define role
+        requirements, inspect observable visual and vocal evidence, compare auditions, and
+        retrieve saved audition records.
+      </p>
+      <p>
+        Audition evaluation can involve fragmented information across screenplays, role briefs,
+        video recordings, audio recordings and reviewer notes. RASA AI brings these materials
+        together into a structured workflow so qualified reviewers can inspect evidence, compare
+        auditions and document their decisions.
+      </p>
+      <p>
+        The platform combines deterministic screenplay cue extraction, local computer-vision
+        measurements, optional audio analysis, audition-library management and Haystack 2.x
+        BM25 keyword retrieval. Db2 is an optional integration and is not required to use RASA AI.
+      </p>
+
+      <h2 class="restricted-heading">CAUTION: RESTRICTED ACCESS — AUTHORIZED USERS ONLY</h2>
+      <p>This platform is designed with privacy and confidentiality as core principles.</p>
+      <ul class="privacy-list">
+        <li><b>Private Vault:</b> Each registered user has a separate account and local data area
+          for their audition records and reports.</li>
+        <li><b>Secure Authentication:</b> Access requires a registered Gmail ID and a unique
+          RASA AI password. New accounts require email OTP verification.</li>
+        <li><b>Data Confidentiality:</b> Account-specific audition libraries, activity logs and
+          report data are stored separately on the machine running RASA AI.</li>
+        <li><b>Restricted Access:</b> The application separates users' records by account. Keep
+          the host computer, backups and account credentials secure.</li>
+        <li><b>Local-first operation:</b> Db2 is optional. Users who choose the Db2 integration
+          must configure access to their own Db2 instance.</li>
+      </ul>
+      <p><b>IMPORTANT:</b> Users are responsible for ensuring that they have the necessary legal
+        authority, permissions and consent before uploading, processing or analyzing audition
+        recordings, screenplay materials or personal information.</p>
+      <p>
+        RASA AI is a human decision-support tool. Computer-vision measurements, optional
+        expression labels, vocal features and text-retrieval scores are experimental signals —
+        not validated measures of acting quality, personality, emotion, diagnosis or role
+        suitability. Casting decisions must remain with qualified human reviewers.
+      </p>
+      <p><b>By accessing this platform, you agree to use audition materials responsibly,
+        ethically and in accordance with applicable laws.</b></p>
+
+      <h2>THE MEANING OF RASA</h2>
+      <p>
+        In the context of <b>Navarasa</b>, <b>Rasa</b> (Sanskrit for “essence,” “juice” or “taste”)
+        refers to the aesthetic flavour or emotional experience evoked in the spectator by a work
+        of art. It is distinct from <i>Bhava</i>, the emotion expressed by the performer; Rasa is
+        the refined sentiment tasted and relished by the audience.
+      </p>
+      <h2>NAVARASA — THE NINE HUMAN EXPRESSIONS</h2>
+      <p>
+        Navarasa literally means “nine rasas,” representing nine fundamental aesthetic moods
+        associated with the <i>Natyashastra</i> tradition.
+      </p>
+      <!-- NAVARASA_IMAGE -->
+      <div class="rasa-grid">
+        <div><b>Shringara</b><span>Love / Beauty</span></div>
+        <div><b>Hasya</b><span>Laughter / Joy</span></div>
+        <div><b>Karuna</b><span>Compassion / Sorrow</span></div>
+        <div><b>Raudra</b><span>Anger / Fury</span></div>
+        <div><b>Veera</b><span>Heroism / Courage</span></div>
+        <div><b>Bhayanaka</b><span>Fear / Terror</span></div>
+        <div><b>Bibhatsa</b><span>Disgust / Aversion</span></div>
+        <div><b>Adbhuta</b><span>Wonder / Amazement</span></div>
+        <div><b>Shanta</b><span>Peace / Tranquility</span></div>
+      </div>
+      <p class="muted-note">
+        The original Natyashastra described eight rasas; Shanta was added by later aestheticians
+        and became part of the Navarasa framework.
+      </p>
+
+      <h2>RASA AI CAPABILITIES</h2>
+      <h3>1. Screenplay analysis</h3>
+      <ul>
+        <li>Enter a story or screenplay as text, or upload a text-based PDF.</li>
+        <li>Extract selectable PDF text using pypdf.</li>
+        <li>Use deterministic, rule-based analysis to identify role and scene cues.</li>
+        <li>Review character candidates and suggested audition tests; download analysis as JSON.</li>
+      </ul>
+      <h3>2. Character cues and role requirements</h3>
+      <ul>
+        <li>Inspect candidate characters and cues extracted from the screenplay.</li>
+        <li>Define role requirements and a character emotion-performance brief for human review.</li>
+        <li>Keep intended portrayal separate from any optional model-generated visual label.</li>
+      </ul>
+      <h3>3. Video analysis</h3>
+      <ul>
+        <li>Upload an audition video and label the actor or audition.</li>
+        <li>Run local computer-vision analysis on sampled video frames.</li>
+        <li>Review observable pose/movement and facial-geometry features when landmarks are visible.</li>
+        <li>Inspect timestamped observations and evidence-quality notes.</li>
+        <li>Optional FER expression labels may be available if the package/model is installed.</li>
+      </ul>
+      <p>
+        Video measurements are sensitive to lighting, framing, camera angle, occlusion, speech,
+        tracking quality and scene context. Facial geometry values are not emotion labels.
+      </p>
+      <h3>4. Vocal analysis</h3>
+      <ul>
+        <li>Run experimental audio-only analysis when the required audio tools are installed.</li>
+        <li>Inspect acoustic summaries, pitch and signal-energy patterns where available.</li>
+        <li>Review timestamped vocal evidence and download output as JSON.</li>
+      </ul>
+      <p>Vocal measurements are acoustic features, not reliable detectors of emotion, intent or acting ability.</p>
+      <h3>5. Combined evidence timeline</h3>
+      <p>Combine current-session video and vocal evidence on a shared timeline. Timestamps are review aids, not automated judgments.</p>
+      <h3>6. Audition library and comparison</h3>
+      <ul>
+        <li>Save and review audition reports locally within the signed-in user's private data area.</li>
+        <li>Compare auditions and filter by text, character, review status and shortlist state where available.</li>
+        <li>Add reviewer decisions, shortlist markers and reviewer notes; export records where offered.</li>
+        <li>Shortlisting is human-managed, not an automated casting recommendation.</li>
+      </ul>
+      <h3>7. Haystack retrieval</h3>
+      <ul>
+        <li>Search saved audition reports with Haystack 2.x BM25 keyword retrieval.</li>
+        <li>Filter by character, review status and shortlisted-only state.</li>
+        <li>Inspect retrieved records and BM25 scores; export current results to CSV.</li>
+      </ul>
+      <p>BM25 scores represent textual relevance, not acting quality, role fit or probability of success.</p>
+      <h3>8. Db2 database integration — optional</h3>
+      <p>
+        RASA AI works without Db2. Users who want this optional connector must have access to
+        their own Db2 instance and configure valid connection details. The initial connector
+        targets Db2 LUW-style catalog queries; compatibility must be confirmed with the chosen service.
+      </p>
+      <h2>APPLICATION WORKFLOW</h2>
+      <ol>
+        <li>Add a screenplay or story.</li>
+        <li>Review character cues and define role requirements.</li>
+        <li>Upload and analyze an audition video.</li>
+        <li>Optionally analyze audition audio.</li>
+        <li>Inspect the evidence timeline and compare auditions.</li>
+        <li>Add reviewer notes, review status and shortlist decisions.</li>
+        <li>Use Haystack Retrieval to find saved records.</li>
+        <li>Optionally configure Db2 and manually sync audition records.</li>
+      </ol>
+      <h2>TECHNOLOGY STACK</h2>
+      <p><b>Python · Streamlit · pypdf · OpenCV · MediaPipe · NumPy · librosa (optional) ·
+      FER (optional) · Haystack 2.x · ibm_db</b></p>
+      <p class="muted-note">
+        Current screenplay analysis is deterministic/rule-based. Haystack retrieval is BM25
+        keyword search and does not require an LLM.
+      </p>
+      <h2>OPTIONAL DB2 SETUP</h2>
+      <p>
+        Configure Db2 only if you want to use the optional database tab. Use the host, port,
+        database, username, password and TLS instructions supplied by your Db2 provider.
+        Do not commit credentials or share passwords.
+      </p>
+      <pre>$env:DB2_HOST = "your-db2-host"
+$env:DB2_PORT = "50000"
+$env:DB2_DATABASE = "your-database"
+$env:DB2_USER = "your-username"
+$env:DB2_PASSWORD = "your-password"
+$env:DB2_SSL = "true"</pre>
+      <ol>
+        <li>Start RASA AI with <code>streamlit run app.py</code>.</li>
+        <li>Open <b>Db2 Database</b> and check the connection.</li>
+        <li>Initialize the audition table.</li>
+        <li>Sync the local audition library to Db2.</li>
+        <li>Load recent Db2 records to inspect read-back.</li>
+      </ol>
+      <p class="muted-note">
+        Do not treat the Db2 connector as production-ready until connection, schema creation,
+        synchronization and read-back have been tested against the real instance.
+      </p>
+      <p class="closing-line">JAI HIND IN</p>
     </div>
-    """, unsafe_allow_html=True)
-
-    intro_left, intro_right = st.columns([1.05, 1.15], gap="large")
-    with intro_left:
-        st.markdown("## 🌺 The meaning of Rasa")
-        st.write(
-            "In the context of Navarasa, **Rasa** (Sanskrit for “essence,” “juice,” or "
-            "“taste”) refers to the aesthetic flavour or experience evoked in the spectator "
-            "by a work of art. It is distinct from **Bhava**, the emotion expressed by the "
-            "performer; Rasa is the refined sentiment tasted and relished by the audience."
+    """
+    intro_before, intro_after = intro_html.split("<!-- NAVARASA_IMAGE -->", 1)
+    st.markdown(intro_before, unsafe_allow_html=True)
+    image_columns = st.columns([1, 3, 1])
+    with image_columns[1]:
+        st.image(
+            str(artwork_path),
+            caption="Navarasa — the nine human expressions",
+            width=720,
         )
-        st.markdown("## 🎭 Navarasa — the nine human expressions")
-        st.write(
-            "Navarasa literally means “nine rasas.” These nine aesthetic moods are associated "
-            "with the *Natyashastra* tradition."
-        )
-        rasa_items = [
-            ("💗", "Shringara", "Love / Beauty"),
-            ("😄", "Hasya", "Laughter / Joy"),
-            ("💧", "Karuna", "Compassion / Sorrow"),
-            ("🔥", "Raudra", "Anger / Fury"),
-            ("🛡️", "Veera", "Heroism / Courage"),
-            ("👁️", "Bhayanaka", "Fear / Terror"),
-            ("🤢", "Bibhatsa", "Disgust / Aversion"),
-            ("✨", "Adbhuta", "Wonder / Amazement"),
-            ("🍃", "Shanta", "Peace / Tranquility"),
-        ]
-        for start in range(0, len(rasa_items), 3):
-            cols = st.columns(3)
-            for col, (emoji, name, meaning) in zip(cols, rasa_items[start:start + 3]):
-                with col:
-                    st.markdown(
-                        f'<div class="rasa-chip"><span>{emoji}</span><b>{name}</b>'
-                        f'<small>{meaning}</small></div>',
-                        unsafe_allow_html=True,
-                    )
-        st.caption(
-            "The original Natyashastra described eight rasas; Shanta was added by later "
-            "aestheticians and became part of the Navarasa framework."
-        )
-    with intro_right:
-        artwork = Path(__file__).resolve().parent / "assets" / "navarasa_artwork.webp"
-        if artwork.exists():
-            st.image(str(artwork), caption="Navarasa — the nine human expressions", use_container_width=True)
-        st.markdown("## 🎬 About RASA AI")
-        st.write(
-            "RASA AI helps filmmakers and casting teams organize screenplay context, define "
-            "role requirements, inspect observable visual and vocal evidence, compare auditions, "
-            "and retrieve saved audition records."
-        )
-        st.markdown("""
-        <div class="rasa-notice">
-          <b>Important — human decision support</b><br>
-          RASA AI is a human decision-support tool. Computer-vision measurements, optional
-          expression labels, vocal features and text-retrieval scores are experimental signals,
-          not validated measures of acting quality, personality, emotion, diagnosis or role
-          suitability. Casting decisions must remain with qualified human reviewers.
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("---")
-    st.markdown("## Explore the RASA AI workflow")
-    capabilities = [
-        ("01", "Screenplay Analysis", "Enter a story or upload a text-based PDF. Extract selectable text and review deterministic, rule-based character and scene cues."),
-        ("02", "Character Cues", "Inspect candidate characters, extracted cues and suggested audition-test context."),
-        ("03", "Role Requirements", "Define role requirements and a character performance brief for human review."),
-        ("04", "Video Analysis", "Review sampled frames, pose/movement measurements, facial geometry and timestamped evidence."),
-        ("05", "Vocal Analysis", "Inspect experimental audio-only acoustic summaries, pitch and signal-energy patterns where available."),
-        ("06", "Combined Evidence Timeline", "Review current-session video and vocal observations along a shared timeline."),
-        ("07", "Audition Library & Comparison", "Save reports locally, compare auditions, add reviewer notes and export records."),
-        ("08", "Haystack Retrieval", "Search saved reports using Haystack 2.x BM25 keyword retrieval."),
-        ("09", "Db2 Database — Optional", "Connect your own Db2 instance if you choose to configure the optional integration."),
-    ]
-    for start in range(0, len(capabilities), 3):
-        cols = st.columns(3)
-        for col, (number, title, description) in zip(cols, capabilities[start:start + 3]):
-            with col:
-                st.markdown(
-                    f'<div class="rasa-capability"><span>{number}</span><b>{title}</b>'
-                    f'<p>{description}</p></div>',
-                    unsafe_allow_html=True,
-                )
-
-    st.markdown("## How a typical workflow works")
-    st.markdown(
-        "1. Add a screenplay or story.  \n"
-        "2. Review character cues and define role requirements.  \n"
-        "3. Upload and analyze an audition video.  \n"
-        "4. Optionally analyze audition audio.  \n"
-        "5. Inspect the evidence timeline and compare auditions.  \n"
-        "6. Add reviewer notes, review status and shortlist decisions.  \n"
-        "7. Use Haystack Retrieval to find saved records.  \n"
-        "8. Optionally configure Db2 and manually sync audition records."
-    )
-    st.markdown("## Technology stack")
-    st.write(
-        "**Python · Streamlit · pypdf · OpenCV · MediaPipe · NumPy · librosa (optional) · "
-        "FER (optional) · Haystack 2.x · ibm_db**"
-    )
-    st.caption(
-        "The current screenplay analysis is deterministic/rule-based. Haystack retrieval is "
-        "BM25 keyword search and does not require an LLM."
-    )
-
-    st.markdown("## Optional Db2 Database integration")
-    st.write(
-        "RASA AI works without Db2. This optional connector requires each user who wants it "
-        "to have access to their own Db2 instance and valid connection details. The initial "
-        "connector targets Db2 LUW-style catalog queries; verify compatibility with your service."
-    )
-    with st.expander("View local Db2 setup instructions"):
-        st.write("Set these variables in the same PowerShell window before launching Streamlit:")
-        st.code(
-            '$env:DB2_HOST = "127.0.0.1"\n'
-            '$env:DB2_PORT = "50000"\n'
-            '$env:DB2_DATABASE = "your-database"\n'
-            '$env:DB2_USER = "your-username"\n'
-            '$env:DB2_PASSWORD = "your-password"\n'
-            '$env:DB2_SSL = "false"  # set true only if your Db2 service requires TLS',
-            language="powershell",
-        )
-        st.write(
-            "Use the host, port, database name, username, password and TLS instructions "
-            "supplied by your Db2 provider. Never share passwords in chat or commit them to Git."
-        )
-        st.markdown(
-            "1. Start RASA AI with `streamlit run app.py`.\n"
-            "2. Open **Db2 Database**.\n"
-            "3. Select **Check Db2 connection**.\n"
-            "4. Select **Initialize audition table**.\n"
-            "5. Select **Sync local audition library to Db2**.\n"
-            "6. Select **Load recent Db2 records** to inspect records read back."
-        )
-        st.warning(
-            "Do not treat Db2 as production-ready until connection, schema creation, "
-            "synchronization and read-back have been tested against the real instance."
-        )
-    st.markdown(
-        '<div class="rasa-footer">RASA AI · Local-first audition intelligence · '
-        'Human review remains central</div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown(intro_after, unsafe_allow_html=True)
 
 
-# Blue, white and dark styling: intentionally consistent with the Detective AI reference.
+# Detective AI-inspired layout: fixed-width left vault sidebar + one long intro card.
 st.markdown("""
 <style>
 section[data-testid="stSidebar"] {
-    background: linear-gradient(180deg,#171c26 0%,#10151e 100%);
-    border-right: 1px solid rgba(133,157,205,.22);
+    background: linear-gradient(180deg,#191d26 0%,#121720 100%);
+    border-right: 1px solid rgba(133,157,205,.16);
+    min-width: 370px !important;
+    max-width: 370px !important;
 }
-section[data-testid="stSidebar"] > div { padding-top: 1.4rem; }
-.rasa-hero, .rasa-capability, .rasa-notice {
-    background: linear-gradient(145deg,rgba(21,29,43,.96),rgba(10,15,23,.98));
-    border: 1px solid rgba(132,157,207,.22);
-    border-radius: 18px;
-    padding: 1.35rem 1.5rem;
+section[data-testid="stSidebar"] > div { padding: 2.1rem 1.15rem 1.5rem; }
+.block-container {
+    max-width: 1500px;
+    padding-top: 5.1rem;
+    padding-bottom: 3rem;
+    padding-left: 3.5rem;
+    padding-right: 3.5rem;
 }
-.rasa-hero { margin: .35rem 0 1.8rem; }
-.rasa-hero .rasa-eyebrow { color:#91a9df; font-size:.75rem; letter-spacing:.18em; font-weight:750; }
-.rasa-hero h1 { margin:.2rem 0 0; font-size:clamp(2.5rem,5vw,4rem)!important; }
-.rasa-hero h2 { border:0; margin:.1rem 0 .5rem!important; }
-.rasa-hero p { color:#b9c7df; font-size:1.05rem; }
-.rasa-chip {
-    min-height:86px; margin:.25rem 0 .5rem; padding:.7rem;
-    border:1px solid rgba(132,157,207,.25); border-radius:12px;
-    background:rgba(31,43,63,.45); display:flex; flex-direction:column; gap:.15rem;
+.detective-intro-panel {
+    background: linear-gradient(145deg,#0e131b 0%,#0b1017 100%);
+    border: 1px solid rgba(132,145,165,.19);
+    border-radius: 24px;
+    padding: 48px 42px 54px;
+    color: #f5f7fb;
+    font-size: 1.04rem;
+    line-height: 1.9;
+    overflow-wrap: anywhere;
 }
-.rasa-chip span { font-size:1.15rem; }
-.rasa-chip b { color:#f3f6ff; }
-.rasa-chip small { color:#aebdd5; font-size:.72rem; }
-.rasa-notice { border-color:rgba(111,151,224,.5); color:#dbe6fa; line-height:1.6; }
-.rasa-capability { min-height:168px; margin-bottom:.8rem; }
-.rasa-capability span { color:#8eabeb; font-size:.8rem; font-weight:800; display:block; }
-.rasa-capability b { color:#f3f6ff; font-size:1.03rem; display:block; margin:.35rem 0; }
-.rasa-capability p { color:#b8c5d9; font-size:.88rem; line-height:1.5; }
-.rasa-footer { color:#8fa2c4; border-top:1px solid rgba(132,157,207,.2); padding:1.2rem 0; text-align:center; }
-.vault-brand { padding:.8rem .7rem 1rem; border-bottom:1px solid rgba(132,157,207,.2); margin-bottom:1rem; }
-.vault-card { background:rgba(8,13,21,.55); border:1px solid rgba(132,157,207,.24);
-    border-radius:16px; padding:1rem; margin:.6rem 0 1.2rem; }
-.vault-card p { color:#bdcbe0; font-size:.9rem; }
-div[data-testid="stForm"] { border:0; padding:0; }
+.detective-intro-panel h1 {
+    color:#f8f9fc; font-size:clamp(2.15rem,3.1vw,3.25rem);
+    line-height:1.13; font-weight:850; letter-spacing:-.035em;
+    margin:0 0 2.7rem; border:0;
+}
+.detective-intro-panel h2 {
+    color:#f4f6fb; font-size:2rem; font-weight:800;
+    line-height:1.2; margin:2.6rem 0 1rem; border:0;
+}
+.detective-intro-panel h3 {
+    color:#e9efff; font-size:1.22rem; font-weight:750;
+    margin:1.6rem 0 .35rem;
+}
+.detective-intro-panel p { color:#edf1f8; margin:.75rem 0 1.1rem; }
+.detective-intro-panel .intro-lead { font-size:1.12rem; }
+.detective-intro-panel .restricted-heading {
+    color:#ffad9e; font-size:clamp(1.55rem,2.5vw,2.35rem);
+    letter-spacing:.025em; margin-top:3rem; white-space:normal;
+}
+.detective-intro-panel ul,.detective-intro-panel ol {
+    padding-left:1.8rem; margin:1rem 0 1.5rem;
+}
+.detective-intro-panel li { padding-left:.25rem; margin:.7rem 0; color:#edf1f8; }
+.detective-intro-panel b { color:#fff; }
+.detective-intro-panel .rasa-grid {
+    display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.65rem;
+    margin:1.2rem 0;
+}
+.detective-intro-panel .rasa-grid div {
+    display:flex; flex-direction:column; gap:.1rem;
+    border:1px solid rgba(132,157,207,.24); border-radius:12px;
+    padding:.8rem 1rem; background:rgba(29,41,60,.45);
+}
+.detective-intro-panel .rasa-grid span,.detective-intro-panel .muted-note {
+    color:#9aa8bd; font-size:.9rem;
+}
+.detective-intro-panel .closing-line { color:#ffcf54; font-weight:850; letter-spacing:.04em; margin-top:2rem; }
+.detective-intro-panel pre {
+    white-space:pre-wrap; padding:1rem 1.2rem; border-radius:10px;
+    background:#171d28; border:1px solid rgba(132,157,207,.24); color:#dce7fb;
+}
+.vault-brand { padding:.4rem .1rem 1.4rem; margin-bottom:.6rem; }
+.vault-card {
+    background:linear-gradient(145deg,#111821,#0c1118);
+    border:1px solid rgba(132,145,165,.17); border-radius:22px;
+    padding:1.15rem 1.2rem; margin:.7rem 0 1.8rem;
+}
+.vault-card p { color:#e0e6ef; font-size:.94rem; line-height:1.7; margin:.6rem 0 0; }
+.vault-card .vault-badge {
+    display:inline-block; color:#f3f6ff; font-size:.78rem; font-weight:800;
+    letter-spacing:.04em; padding:.45rem .85rem; border-radius:22px;
+    border:1px solid rgba(110,145,205,.38); background:#202a3a;
+}
+section[data-testid="stSidebar"] h2 { font-size:1.35rem; }
+section[data-testid="stSidebar"] label { color:#f1f4fa; }
+section[data-testid="stSidebar"] input {
+    background:#171c25 !important; border:1px solid rgba(132,145,165,.18) !important;
+    border-radius:12px !important; min-height:3rem;
+}
+section[data-testid="stSidebar"] div.stButton > button,
+section[data-testid="stSidebar"] div.stFormSubmitButton > button {
+    min-height:3.35rem; border-radius:16px; border:1px solid rgba(132,145,165,.2);
+    background:linear-gradient(145deg,#20242d,#1a1e26); color:#fff;
+    font-weight:650;
+}
+@media (max-width: 900px) {
+  section[data-testid="stSidebar"] { min-width:300px !important; max-width:300px !important; }
+  .block-container { padding-left:1rem; padding-right:1rem; padding-top:2rem; }
+  .detective-intro-panel { padding:1.5rem; }
+  .detective-intro-panel .rasa-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -334,100 +431,94 @@ if "rasa_user" not in st.session_state:
 if not st.session_state["rasa_user"]:
     with st.sidebar:
         st.markdown(
-            '<div class="vault-brand"><h2 style="margin:0;border:0">🎬 RASA AI</h2>'
-            '<span style="color:#aebdd5">Audition Intelligence &amp; Casting Support</span></div>',
+            '<div class="vault-brand"><h2 style="margin:0;border:0">⚙️ Case Indexer</h2></div>',
             unsafe_allow_html=True,
         )
         st.markdown(
-            '<div class="vault-card"><b>🔐 PRIVATE VAULT</b>'
-            '<h3>Access your private vault</h3>'
-            '<p>Sign in to manage your auditions, analyses, reports and casting records securely.</p>'
-            '</div>',
+            '<div class="vault-card"><span class="vault-badge">PRIVATE VAULT</span>'
+            '<h3 style="margin:.95rem 0 .2rem;color:#fff">Case Indexer</h3>'
+            '<p>Each user must enter their Gmail ID and a strictly unique password to access '
+            'RASA AI and their private audition vault.</p></div>',
             unsafe_allow_html=True,
         )
-        auth_mode = st.radio(
-            "Account",
-            ["Sign In", "Create Account", "Forgot Password"],
-            horizontal=True,
-            label_visibility="collapsed",
-            key="rasa_auth_mode",
-        )
-        if auth_mode == "Sign In":
-            with st.form("rasa_signin_form"):
-                login_email = st.text_input("Gmail ID", placeholder="you@gmail.com")
-                login_password = st.text_input("RASA AI Password", type="password")
-                sign_in = st.form_submit_button("🔒 Unlock My Private Vault", use_container_width=True)
-            if sign_in:
-                user = authenticate(login_email, login_password)
-                if user:
-                    st.session_state["rasa_user"] = user
-                    st.session_state["rasa_auth_notice"] = "Your private vault is unlocked."
-                    st.rerun()
-                else:
-                    st.error("The Gmail ID or password is incorrect.")
-        elif auth_mode == "Create Account":
-            with st.form("rasa_register_form"):
-                register_email = st.text_input("Gmail ID", placeholder="you@gmail.com")
-                register_password = st.text_input("Create a unique password", type="password")
-                register_confirm = st.text_input("Confirm password", type="password")
-                request_code = st.form_submit_button("Create account · Send OTP", use_container_width=True)
-            if request_code:
-                if register_password != register_confirm:
-                    st.error("The passwords do not match.")
-                else:
-                    try:
-                        begin_registration(register_email, register_password)
-                        st.session_state["rasa_pending_email"] = register_email.strip().lower()
-                        st.success("Verification code sent. Check your Gmail inbox.")
-                    except Exception as exc:
-                        st.error(str(exc))
-            if st.session_state.get("rasa_pending_email"):
-                with st.form("rasa_verify_register_form"):
-                    otp = st.text_input("6-digit email verification code", max_chars=6)
-                    verify = st.form_submit_button("Verify Gmail & create vault", use_container_width=True)
-                if verify:
-                    try:
-                        user = verify_registration(st.session_state["rasa_pending_email"], otp)
-                        st.session_state["rasa_user"] = user
-                        st.session_state.pop("rasa_pending_email", None)
-                        st.success("Gmail verified. Your private vault is ready.")
-                        st.rerun()
-                    except Exception as exc:
-                        st.error(str(exc))
-        else:
-            with st.form("rasa_forgot_form"):
-                reset_email = st.text_input("Registered Gmail ID", placeholder="you@gmail.com")
-                send_reset = st.form_submit_button("Send password reset OTP", use_container_width=True)
-            if send_reset:
-                try:
-                    begin_password_reset(reset_email)
-                    st.session_state["rasa_reset_email"] = reset_email.strip().lower()
-                    st.success("Password reset code sent to your Gmail.")
-                except Exception as exc:
-                    st.error(str(exc))
-            if st.session_state.get("rasa_reset_email"):
-                with st.form("rasa_reset_verify_form"):
-                    reset_otp = st.text_input("6-digit reset code", max_chars=6)
-                    new_password = st.text_input("New password (12+ characters)", type="password")
-                    confirm_new_password = st.text_input("Confirm new password", type="password")
-                    finish_reset = st.form_submit_button("Verify code & reset password", use_container_width=True)
-                if finish_reset:
-                    if new_password != confirm_new_password:
+        st.markdown("### Unlock Private Vault")
+        with st.form("rasa_signin_form"):
+            login_email = st.text_input("Gmail ID", placeholder="yourname@gmail.com")
+            login_password = st.text_input("Unique password", type="password")
+            sign_in = st.form_submit_button("Unlock my private vault", use_container_width=True)
+        if sign_in:
+            user = authenticate(login_email, login_password)
+            if user:
+                st.session_state["rasa_user"] = user
+                st.session_state["rasa_auth_notice"] = "Your private vault is unlocked."
+                st.rerun()
+            else:
+                st.error("The Gmail ID or password is incorrect.")
+
+        with st.expander("Create account / Forgot password"):
+            auth_mode = st.radio(
+                "Account action", ["Create Account", "Forgot Password"],
+                label_visibility="collapsed", key="rasa_auth_mode",
+            )
+            if auth_mode == "Create Account":
+                with st.form("rasa_register_form"):
+                    register_email = st.text_input("Gmail ID for registration")
+                    register_password = st.text_input("Create a unique password (12+ characters)", type="password")
+                    register_confirm = st.text_input("Confirm password", type="password")
+                    request_code = st.form_submit_button("Send verification OTP", use_container_width=True)
+                if request_code:
+                    if register_password != register_confirm:
                         st.error("The passwords do not match.")
                     else:
                         try:
-                            finish_password_reset(
-                                st.session_state["rasa_reset_email"], reset_otp, new_password
-                            )
-                            st.session_state.pop("rasa_reset_email", None)
-                            st.success("Password reset successfully. Sign in with your new password.")
-                            st.session_state["rasa_auth_mode"] = "Sign In"
+                            begin_registration(register_email, register_password)
+                            st.session_state["rasa_pending_email"] = register_email.strip().lower()
+                            st.success("Verification code sent. Check your Gmail inbox.")
+                        except Exception as exc:
+                            st.error(str(exc))
+                if st.session_state.get("rasa_pending_email"):
+                    with st.form("rasa_verify_register_form"):
+                        otp = st.text_input("6-digit verification code", max_chars=6)
+                        verify = st.form_submit_button("Verify Gmail & create vault", use_container_width=True)
+                    if verify:
+                        try:
+                            user = verify_registration(st.session_state["rasa_pending_email"], otp)
+                            st.session_state["rasa_user"] = user
+                            st.session_state.pop("rasa_pending_email", None)
                             st.rerun()
                         except Exception as exc:
                             st.error(str(exc))
-        st.markdown("---")
-        st.caption("🛡️ Your account's local data is stored in its own private folder.")
-        st.caption("Email verification requires Gmail SMTP settings configured by the application owner.")
+            else:
+                with st.form("rasa_forgot_form"):
+                    reset_email = st.text_input("Registered Gmail ID")
+                    send_reset = st.form_submit_button("Send password reset OTP", use_container_width=True)
+                if send_reset:
+                    try:
+                        begin_password_reset(reset_email)
+                        st.session_state["rasa_reset_email"] = reset_email.strip().lower()
+                        st.success("Password reset code sent to your Gmail.")
+                    except Exception as exc:
+                        st.error(str(exc))
+                if st.session_state.get("rasa_reset_email"):
+                    with st.form("rasa_reset_verify_form"):
+                        reset_otp = st.text_input("6-digit reset code", max_chars=6)
+                        new_password = st.text_input("New password (12+ characters)", type="password")
+                        confirm_new_password = st.text_input("Confirm new password", type="password")
+                        finish_reset = st.form_submit_button("Verify code & reset password", use_container_width=True)
+                    if finish_reset:
+                        if new_password != confirm_new_password:
+                            st.error("The passwords do not match.")
+                        else:
+                            try:
+                                finish_password_reset(
+                                    st.session_state["rasa_reset_email"], reset_otp, new_password
+                                )
+                                st.session_state.pop("rasa_reset_email", None)
+                                st.success("Password reset. Sign in with your new password.")
+                                st.rerun()
+                            except Exception as exc:
+                                st.error(str(exc))
+        st.caption("Private local storage · Gmail verification required for new accounts")
 
     _render_intro_page()
     st.stop()
