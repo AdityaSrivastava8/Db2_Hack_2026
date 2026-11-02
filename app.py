@@ -15,7 +15,6 @@ from rasa_auth import (
     begin_password_reset, finish_password_reset,
 )
 from pathlib import Path
-
 import streamlit as st
 from pypdf import PdfReader
 
