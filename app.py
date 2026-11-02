@@ -803,6 +803,136 @@ div[data-testid="stProgressBar"] > div > div {
 hr {
     border-color: rgba(135, 164, 220, .2) !important;
 }
+
+/* Stronger visual hierarchy: section banners and elevated workflow surfaces. */
+.rasa-section-heading {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin: .1rem 0 1.55rem;
+    padding: 1.15rem 1.35rem;
+    border: 1px solid rgba(130, 169, 239, .30);
+    border-left: 4px solid #82adff;
+    border-radius: 17px;
+    background:
+      radial-gradient(circle at 100% 0%, rgba(82, 132, 219, .17), transparent 38%),
+      linear-gradient(125deg, rgba(27, 42, 66, .98), rgba(16, 25, 40, .98));
+    box-shadow: 0 12px 30px rgba(0, 0, 0, .16);
+}
+.rasa-section-index {
+    flex: 0 0 2.8rem;
+    width: 2.8rem;
+    height: 2.8rem;
+    display: grid;
+    place-items: center;
+    border-radius: 12px;
+    color: #dce9ff;
+    background: linear-gradient(145deg, #426db2, #263f70);
+    border: 1px solid rgba(164, 194, 246, .35);
+    font-size: .9rem;
+    font-weight: 900;
+    letter-spacing: .04em;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12);
+}
+.rasa-section-copy { min-width: 0; }
+.rasa-section-eyebrow {
+    margin-bottom: .24rem;
+    color: #91b8ff;
+    font-size: .68rem;
+    line-height: 1.2;
+    font-weight: 850;
+    letter-spacing: .17em;
+}
+.rasa-section-title {
+    color: #f4f7ff;
+    font-size: clamp(1.35rem, 2.2vw, 1.85rem);
+    line-height: 1.2;
+    font-weight: 900;
+    letter-spacing: -.035em;
+}
+.rasa-workspace-header {
+    padding: 2rem 2.15rem 1.85rem;
+    min-height: 190px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.rasa-workspace-title {
+    font-weight: 950 !important;
+    font-size: clamp(2.65rem, 5vw, 3.8rem) !important;
+    letter-spacing: -.055em !important;
+}
+.rasa-workspace-subtitle {
+    font-size: 1rem;
+}
+div[data-testid="stTabs"] [data-testid="stTabContent"] {
+    padding: 1.75rem 1.1rem 2.4rem !important;
+    border: 1px solid rgba(126, 157, 211, .15);
+    border-top: 0;
+    border-radius: 0 0 20px 20px;
+    background: linear-gradient(180deg, rgba(18, 27, 42, .40), rgba(12, 19, 30, .18));
+}
+div[data-testid="stTabs"] > div:first-child {
+    padding: .35rem .35rem 0;
+    border: 1px solid rgba(126, 157, 211, .18);
+    border-radius: 15px 15px 0 0;
+    background: linear-gradient(90deg, rgba(24, 37, 58, .96), rgba(15, 24, 38, .96));
+}
+div[data-testid="stTabs"] button[role="tab"] {
+    min-height: 3.35rem;
+    padding: .82rem 1rem;
+    font-size: .9rem;
+    font-weight: 780 !important;
+}
+div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+    color: #fff !important;
+    background: linear-gradient(180deg, rgba(77, 121, 195, .32), rgba(54, 88, 145, .13)) !important;
+    box-shadow: inset 0 -3px 0 #8db6ff !important;
+}
+div[data-testid="stTextArea"] textarea {
+    min-height: 235px;
+    padding: 1rem !important;
+    line-height: 1.65;
+    background: linear-gradient(145deg, #1b2638, #151f30) !important;
+}
+div[data-testid="stTextInput"] input,
+div[data-testid="stSelectbox"] [data-baseweb="select"] > div,
+div[data-testid="stMultiSelect"] [data-baseweb="select"] > div {
+    min-height: 2.85rem;
+    background: linear-gradient(145deg, #1b2638, #151f30) !important;
+}
+div[data-testid="stFileUploader"] section {
+    padding: 1.2rem;
+    background: linear-gradient(145deg, rgba(28, 43, 66, .82), rgba(18, 29, 46, .82)) !important;
+    border: 1px dashed rgba(133, 172, 239, .48) !important;
+}
+div[data-testid="stExpander"] {
+    margin: .55rem 0;
+    background: linear-gradient(145deg, rgba(25, 39, 61, .90), rgba(16, 26, 42, .90)) !important;
+    box-shadow: 0 8px 22px rgba(0,0,0,.10);
+}
+.stButton > button, .stDownloadButton > button,
+div[data-testid="stFormSubmitButton"] button {
+    min-height: 2.95rem;
+    padding: .55rem 1.15rem;
+    background: linear-gradient(135deg, #416fc0, #2d4f91) !important;
+    border: 1px solid rgba(151, 187, 249, .48) !important;
+    box-shadow: 0 7px 18px rgba(32, 70, 135, .18);
+}
+[data-testid="stMetric"] {
+    padding: 1rem 1.1rem;
+    border-radius: 15px;
+    border: 1px solid rgba(129, 163, 220, .24);
+    background: linear-gradient(145deg, rgba(28, 42, 64, .90), rgba(17, 27, 43, .90));
+}
+[data-testid="stMetricLabel"] { color: #a9c4f2 !important; font-weight: 700; }
+[data-testid="stMetricValue"] { color: #f5f8ff !important; font-weight: 900; }
+@media (max-width: 850px) {
+    .rasa-section-heading { padding: .95rem; gap: .75rem; }
+    .rasa-section-title { font-size: 1.25rem; }
+    div[data-testid="stTabs"] [data-testid="stTabContent"] { padding: 1.2rem .5rem !important; }
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -1190,6 +1320,23 @@ st.markdown(
 )
 st.session_state.pop("rasa_auth_notice", None)  # Clear the one-time notice without a green banner.
 
+
+def _rasa_section_heading(number: str, eyebrow: str, title: str) -> None:
+    """Render a consistent blue section banner inside the authenticated workspace."""
+    st.markdown(
+        f"""
+        <div class="rasa-section-heading">
+          <div class="rasa-section-index">{html.escape(number)}</div>
+          <div class="rasa-section-copy">
+            <div class="rasa-section-eyebrow">{html.escape(eyebrow)}</div>
+            <div class="rasa-section-title">{html.escape(title)}</div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 workflow_tabs = st.tabs([
     "Screenplay",
     "Character Cues",
@@ -1413,7 +1560,7 @@ def build_timestamped_evidence(targets, video_report):
 
 # ---------- Story input ----------
 with workflow_tabs[0]:
-    st.header("Add a film story / screenplay")
+    _rasa_section_heading("01", "SCREENPLAY WORKSPACE", "Add a film story / screenplay")
     source = st.radio("Story input method", ["Paste story / screenplay", "Upload screenplay PDF"], horizontal=True)
     story_text = ""
     if source == "Paste story / screenplay":
@@ -1439,7 +1586,7 @@ with workflow_tabs[0]:
 
     # Keep the workflow numbering stable: sections 1–4 are always visible.
 with workflow_tabs[1]:
-    st.header("Character candidates and story cues")
+    _rasa_section_heading("02", "SCRIPT BREAKDOWN", "Character candidates and story cues")
     if story_report:
         st.write(f"Detected {len(story_report['story_characters'])} character candidate(s) and {story_report['screenplay_scene_heading_count']} scene heading(s).")
         for i, character in enumerate(story_report["story_characters"], 1):
@@ -1462,7 +1609,7 @@ with workflow_tabs[1]:
 
     # ---------- Explicit role requirements for transparent matching ----------
 with workflow_tabs[2]:
-    st.header("Define role requirements")
+    _rasa_section_heading("03", "CASTING BRIEF", "Define role requirements")
     if story_report and story_report.get("story_characters"):
         st.write("Choose observable requirements for the selected role. These are filmmaker-defined targets, not automatically inferred acting judgments.")
         requirement_options = [
@@ -1557,7 +1704,7 @@ with workflow_tabs[2]:
 
     # ---------- Local computer vision ----------
 with workflow_tabs[3]:
-    st.header("Upload an actor audition video")
+    _rasa_section_heading("04", "VISUAL REVIEW", "Upload an actor audition video")
     st.write("Upload an audition clip with the actor's consent. RasaAI measures body movement and facial geometry. Optional FER mode adds model-estimated facial-expression labels for human review; these are uncertain visual predictions, not proof of internal emotion or acting ability.")
     character_options = [c["name"] for c in story_report.get("story_characters", [])] if story_report else []
     selected_character = st.selectbox("Character being auditioned for", character_options, key="selected_character") if character_options else st.text_input("Character being auditioned for", placeholder="Enter character name")
@@ -2150,7 +2297,7 @@ with workflow_tabs[3]:
 
     # ---------- Vocal performance analysis (audio-only, experimental) ----------
 with workflow_tabs[4]:
-    st.header("Vocal performance analysis")
+    _rasa_section_heading("05", "AUDIO REVIEW", "Vocal performance analysis")
     st.write(
         "Upload an audition audio track to inspect pitch, loudness, pauses and vocal variation. "
         "This measures acoustic patterns; it does not determine whether an actor is truly sad, happy, angry, "
@@ -2465,7 +2612,7 @@ with workflow_tabs[4]:
     # ---------- Combined vocal + visual evidence timeline (experimental) ----------
     st.divider()
 with workflow_tabs[5]:
-    st.header("Combined vocal + visual evidence timeline")
+    _rasa_section_heading("06", "EVIDENCE REVIEW", "Combined vocal + visual evidence timeline")
     st.write(
         "Align timestamped video observations with nearby vocal measurements for reviewer inspection. "
         "This does not infer a person's true emotion or calculate a validated acting score."
@@ -2598,7 +2745,7 @@ with workflow_tabs[5]:
 
 # ---------- Standalone Haystack Retrieval tab ----------
 with workflow_tabs[6]:
-    st.header("Haystack Retrieval")
+    _rasa_section_heading("07", "AUDITION LIBRARY", "Haystack Retrieval")
     st.caption(
         "Search saved audition reports using Haystack BM25 keyword retrieval. "
         "Results are relevant recorded evidence for human review, not casting recommendations."
@@ -2826,7 +2973,7 @@ with workflow_tabs[6]:
 
 # ---------- Optional Db2 integration ----------
 with workflow_tabs[7]:
-    st.header("Db2 Database")
+    _rasa_section_heading("08", "OPTIONAL DATA CONNECTOR", "Db2 Database")
     st.caption(
         "Optional, locally configured Db2 persistence. RASA AI works without Db2; each user who wants this integration must provide access to their own Db2 instance. "
         "The account-specific local JSON library remains the source; sync is manual."
