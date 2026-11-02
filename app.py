@@ -137,7 +137,10 @@ hr {
 # ---------- RASA AI Private Vault authentication + public introduction ----------
 def _render_intro_page():
     # One continuous, scrollable introduction panel matching the Detective AI layout.
-    artwork_path = Path(__file__).resolve().parent / "assets" / "navarasa_artwork.png"
+    app_dir = Path(__file__).resolve().parent
+    artwork_path = app_dir / "assets" / "navarasa_artwork.png"
+    if not artwork_path.is_file():
+        artwork_path = app_dir / "navarasa_artwork.png"
     intro_html = f"""
     <div class="detective-intro-panel">
       <h1>🎬 RASA AI: Audition Intelligence &amp; Casting Support</h1>
@@ -312,15 +315,24 @@ $env:DB2_SSL = "true"</pre>
       <p class="closing-line">JAI HIND IN</p>
     </div>
     """
+    # Streamlit's Markdown parser treats indented HTML lines as code blocks.
+    # Normalize every line before splitting so no literal HTML tags leak into the page.
+    intro_html = "\n".join(line.lstrip() for line in intro_html.splitlines()).strip()
     intro_before, intro_after = intro_html.split("<!-- NAVARASA_IMAGE -->", 1)
     # Keep every HTML block balanced. Streamlit sanitizes unclosed HTML across
     # separate markdown calls, which previously broke the remainder of the page.
-    st.markdown(intro_before + "\\n</div>", unsafe_allow_html=True)
-    st.image(
-        str(artwork_path),
-        caption="Navarasa — the nine human expressions",
-        width=860,
-    )
+    st.markdown(intro_before + "\n</div>", unsafe_allow_html=True)
+    if not artwork_path.is_file():
+        st.error(
+            "Navarasa artwork is missing. Place navarasa_artwork.png in the "
+            "assets folder beside app.py."
+        )
+    else:
+        st.image(
+            str(artwork_path),
+            caption="Navarasa — the nine human expressions",
+            width=860,
+        )
     st.markdown(
         '<div class="detective-intro-panel">' + intro_after,
         unsafe_allow_html=True,
