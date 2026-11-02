@@ -689,6 +689,120 @@ div[data-testid="stAlert"] {
         font-size: .82rem;
     }
 }
+
+/* ---------- RASA AI blue workspace theme across every workflow section ---------- */
+:root {
+    --rasa-blue: #83adff;
+    --rasa-blue-bright: #a8c7ff;
+    --rasa-blue-deep: #263f70;
+    --rasa-panel: #151e2d;
+    --rasa-panel-soft: #192437;
+    --rasa-line: rgba(135, 164, 220, .25);
+}
+h1, h2, h3, h4,
+[data-testid="stMarkdownContainer"] h1,
+[data-testid="stMarkdownContainer"] h2,
+[data-testid="stMarkdownContainer"] h3 {
+    color: #f3f6ff !important;
+    font-weight: 850 !important;
+    letter-spacing: -.025em !important;
+}
+h1 { font-size: clamp(2rem, 3vw, 2.65rem) !important; }
+h2 { font-size: clamp(1.55rem, 2.3vw, 2rem) !important; }
+h3 { font-size: 1.22rem !important; }
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] li,
+[data-testid="stCaptionContainer"] {
+    line-height: 1.7;
+}
+[data-testid="stVerticalBlock"] > [data-testid="stElementContainer"] {
+    scroll-margin-top: 1.5rem;
+}
+div[data-testid="stRadio"] label,
+div[data-testid="stCheckbox"] label {
+    color: #dce7fb !important;
+}
+div[data-testid="stTextArea"] label,
+div[data-testid="stTextInput"] label,
+div[data-testid="stSelectbox"] label,
+div[data-testid="stMultiSelect"] label,
+div[data-testid="stFileUploader"] label,
+div[data-testid="stNumberInput"] label,
+div[data-testid="stSlider"] label,
+div[data-testid="stDateInput"] label,
+div[data-testid="stRadio"] > label,
+div[data-testid="stCheckbox"] > label {
+    color: #dce7fb !important;
+    font-weight: 680 !important;
+}
+div[data-testid="stTextArea"] textarea,
+div[data-testid="stTextInput"] input,
+div[data-testid="stNumberInput"] input,
+div[data-testid="stSelectbox"] [data-baseweb="select"] > div,
+div[data-testid="stMultiSelect"] [data-baseweb="select"] > div {
+    background: #182335 !important;
+    border: 1px solid rgba(132, 164, 220, .28) !important;
+    color: #f2f6ff !important;
+    border-radius: 12px !important;
+}
+div[data-testid="stTextArea"] textarea:focus,
+div[data-testid="stTextInput"] input:focus {
+    border-color: #83adff !important;
+    box-shadow: 0 0 0 2px rgba(131, 173, 255, .13) !important;
+}
+.stButton > button,
+.stDownloadButton > button,
+div[data-testid="stFormSubmitButton"] button {
+    color: #f7faff !important;
+    background: linear-gradient(135deg, #35599a, #294579) !important;
+    border: 1px solid rgba(145, 181, 246, .48) !important;
+    border-radius: 12px !important;
+    font-weight: 760 !important;
+    transition: transform .16s ease, filter .16s ease, box-shadow .16s ease;
+}
+.stButton > button:hover,
+.stDownloadButton > button:hover,
+div[data-testid="stFormSubmitButton"] button:hover {
+    filter: brightness(1.13);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 22px rgba(36, 76, 143, .24);
+}
+.stButton > button:focus,
+.stDownloadButton > button:focus {
+    box-shadow: 0 0 0 2px rgba(131, 173, 255, .28) !important;
+}
+div[data-testid="stExpander"] {
+    background: linear-gradient(145deg, rgba(25, 37, 57, .94), rgba(17, 26, 41, .94)) !important;
+    border: 1px solid var(--rasa-line) !important;
+    border-radius: 15px !important;
+}
+div[data-testid="stExpander"] summary {
+    color: #eaf1ff !important;
+    font-weight: 720 !important;
+}
+div[data-testid="stAlert"] {
+    border-radius: 13px !important;
+}
+div[data-testid="stAlert"][data-testid="stAlert"] {
+    border-color: var(--rasa-line);
+}
+div[data-testid="stTabs"] [data-testid="stTabContent"] {
+    padding: 1.9rem .15rem 2.5rem !important;
+}
+div[data-testid="stTabs"] button[role="tab"] {
+    font-weight: 720 !important;
+}
+div[data-testid="stProgressBar"] > div > div {
+    background: linear-gradient(90deg, #527fc9, #91baff) !important;
+}
+[data-testid="stDataFrame"], [data-testid="stTable"] {
+    border: 1px solid var(--rasa-line) !important;
+    border-radius: 14px !important;
+    overflow: hidden;
+}
+hr {
+    border-color: rgba(135, 164, 220, .2) !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -1074,8 +1188,7 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-if st.session_state.pop("rasa_auth_notice", None):
-    st.success("Your private vault is unlocked.")
+st.session_state.pop("rasa_auth_notice", None)  # Clear the one-time notice without a green banner.
 
 workflow_tabs = st.tabs([
     "Screenplay",
