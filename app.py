@@ -137,7 +137,7 @@ hr {
 # ---------- RASA AI Private Vault authentication + public introduction ----------
 def _render_intro_page():
     # One continuous, scrollable introduction panel matching the Detective AI layout.
-    artwork_path = Path(__file__).resolve().parent / "assets" / "navarasa_artwork.webp"
+    artwork_path = Path(__file__).resolve().parent / "assets" / "navarasa_artwork.png"
     intro_html = f"""
     <div class="detective-intro-panel">
       <h1>🎬 RASA AI: Audition Intelligence &amp; Casting Support</h1>
@@ -313,15 +313,18 @@ $env:DB2_SSL = "true"</pre>
     </div>
     """
     intro_before, intro_after = intro_html.split("<!-- NAVARASA_IMAGE -->", 1)
-    st.markdown(intro_before, unsafe_allow_html=True)
-    image_columns = st.columns([1, 3, 1])
-    with image_columns[1]:
-        st.image(
-            str(artwork_path),
-            caption="Navarasa — the nine human expressions",
-            width=720,
-        )
-    st.markdown(intro_after, unsafe_allow_html=True)
+    # Keep every HTML block balanced. Streamlit sanitizes unclosed HTML across
+    # separate markdown calls, which previously broke the remainder of the page.
+    st.markdown(intro_before + "\\n</div>", unsafe_allow_html=True)
+    st.image(
+        str(artwork_path),
+        caption="Navarasa — the nine human expressions",
+        width=860,
+    )
+    st.markdown(
+        '<div class="detective-intro-panel">' + intro_after,
+        unsafe_allow_html=True,
+    )
 
 
 # Detective AI-inspired layout: fixed-width left vault sidebar + one long intro card.
@@ -330,17 +333,28 @@ st.markdown("""
 section[data-testid="stSidebar"] {
     background: linear-gradient(180deg,#191d26 0%,#121720 100%);
     border-right: 1px solid rgba(133,157,205,.16);
-    min-width: 370px !important;
-    max-width: 370px !important;
+    width: 370px;
 }
 section[data-testid="stSidebar"] > div { padding: 2.1rem 1.15rem 1.5rem; }
+section[data-testid="stSidebar"][aria-expanded="false"] {
+    width: 0 !important;
+    min-width: 0 !important;
+    margin-left: 0 !important;
+}
+section[data-testid="stSidebar"][aria-expanded="false"] > div {
+    width: 0 !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+}
 .block-container {
-    max-width: 1500px;
+    max-width: none;
+    width: 100%;
     padding-top: 5.1rem;
     padding-bottom: 3rem;
     padding-left: 3.5rem;
     padding-right: 3.5rem;
 }
+.stImage img { width: min(100%, 860px) !important; height: auto !important; object-fit: contain; }
 .detective-intro-panel {
     background: linear-gradient(145deg,#0e131b 0%,#0b1017 100%);
     border: 1px solid rgba(132,145,165,.19);
@@ -417,7 +431,7 @@ section[data-testid="stSidebar"] div.stFormSubmitButton > button {
     font-weight:650;
 }
 @media (max-width: 900px) {
-  section[data-testid="stSidebar"] { min-width:300px !important; max-width:300px !important; }
+  section[data-testid="stSidebar"] { width:300px; }
   .block-container { padding-left:1rem; padding-right:1rem; padding-top:2rem; }
   .detective-intro-panel { padding:1.5rem; }
   .detective-intro-panel .rasa-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
