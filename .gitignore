@@ -1,12 +1,18 @@
-.venv/
-__pycache__/
-*.pyc
-.streamlit/secrets.toml
+# Python environments
 .venv/
 .venv312/
+
+# Python cache
 __pycache__/
-*.pyc
+*.py[cod]
+
+# Streamlit secrets
+.streamlit/secrets.toml
+
+# Environment variables and secrets
 .env
 .env.*
 !.env.example
-.streamlit/secrets.toml
+
+# RASA AI private user data
+rasaai_private_data/
