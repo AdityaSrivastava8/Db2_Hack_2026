@@ -1871,9 +1871,49 @@ with workflow_tabs[1]:
                 with st.expander("How this profile was built", expanded=False):
                     st.caption(character["limitations"])
 
-        st.markdown("### Analysis method and limitations")
-        for note in story_report["notes"]:
-            st.caption("• " + note)
+        st.markdown("""
+        <style>
+        .rasa-analysis-method {
+            margin: .35rem 0 .65rem;
+            padding: 1rem 1.15rem;
+            border: 1px solid rgba(135, 164, 220, .26);
+            border-left: 4px solid #83adff;
+            border-radius: 14px;
+            background: linear-gradient(145deg, #192437, #121d2d);
+        }
+        .rasa-analysis-method h3 {
+            margin: 0 0 .55rem 0;
+            padding: 0;
+            color: #f3f6ff;
+            font-size: 1.22rem;
+            font-weight: 850;
+            line-height: 1.3;
+        }
+        .rasa-analysis-method ul {
+            margin: 0;
+            padding-left: 1.2rem;
+        }
+        .rasa-analysis-method li {
+            margin: 0;
+            padding: .18rem 0;
+            color: #cbd7eb;
+            font-size: .91rem;
+            line-height: 1.45;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        notes_html = "".join(
+            f"<li>{html.escape(str(note))}</li>"
+            for note in story_report["notes"]
+        )
+        st.markdown(
+            '<div class="rasa-analysis-method">'
+            '<h3>Analysis method and limitations</h3>'
+            f'<ul>{notes_html}</ul>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
         st.download_button(
             "Download screenplay analysis (JSON)",
             json.dumps(story_report, indent=2, ensure_ascii=False),
