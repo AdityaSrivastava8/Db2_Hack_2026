@@ -466,7 +466,7 @@ if not st.session_state["rasa_user"]:
             if auth_mode == "Create Account":
                 with st.form("rasa_register_form"):
                     register_email = st.text_input("Gmail ID for registration")
-                    register_password = st.text_input("Create a unique password (12+ characters)", type="password")
+                    register_password = st.text_input("Create a password (at least 4 characters)", type="password")
                     register_confirm = st.text_input("Confirm password", type="password")
                     request_code = st.form_submit_button("Send verification OTP", use_container_width=True)
                 if request_code:
@@ -505,7 +505,7 @@ if not st.session_state["rasa_user"]:
                 if st.session_state.get("rasa_reset_email"):
                     with st.form("rasa_reset_verify_form"):
                         reset_otp = st.text_input("6-digit reset code", max_chars=6)
-                        new_password = st.text_input("New password (12+ characters)", type="password")
+                        new_password = st.text_input("New password (at least 4 characters)", type="password")
                         confirm_new_password = st.text_input("Confirm new password", type="password")
                         finish_reset = st.form_submit_button("Verify code & reset password", use_container_width=True)
                     if finish_reset:
@@ -527,6 +527,171 @@ if not st.session_state["rasa_user"]:
     st.stop()
 
 
+
+# ---------- Authenticated RASA AI workspace polish ----------
+st.markdown("""
+<style>
+/* Give the working area a deliberate, spacious dashboard layout. */
+.block-container {
+    padding-top: 2.6rem !important;
+    padding-bottom: 4rem !important;
+    padding-left: clamp(1.25rem, 3vw, 3.25rem) !important;
+    padding-right: clamp(1.25rem, 3vw, 3.25rem) !important;
+}
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #171e2b 0%, #111722 100%);
+    border-right: 1px solid rgba(135, 164, 220, .20);
+}
+section[data-testid="stSidebar"] > div {
+    padding: 2rem 1.1rem 1.5rem;
+}
+section[data-testid="stSidebar"] h3 {
+    color: #f4f7ff !important;
+    font-size: 1.12rem !important;
+    font-weight: 780 !important;
+    letter-spacing: -.015em;
+}
+section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
+    color: #aebbd1;
+    overflow-wrap: anywhere;
+}
+section[data-testid="stSidebar"] .stButton > button {
+    min-height: 3.1rem;
+    width: 100%;
+    border-radius: 13px;
+    background: linear-gradient(135deg, #263b63, #1d2b48);
+    border: 1px solid rgba(130, 166, 235, .34);
+    color: #f7faff;
+    font-weight: 700;
+}
+section[data-testid="stSidebar"] .stButton > button:hover {
+    border-color: #8eb8ff;
+    background: linear-gradient(135deg, #304b7a, #23385d);
+}
+
+/* Workspace title block */
+.rasa-workspace-header {
+    position: relative;
+    overflow: hidden;
+    padding: 1.55rem 1.8rem 1.45rem;
+    margin: .15rem 0 1.55rem;
+    border-radius: 22px;
+    border: 1px solid rgba(135, 164, 220, .24);
+    background:
+      radial-gradient(ellipse at 92% 0%, rgba(93, 139, 221, .19), transparent 42%),
+      linear-gradient(135deg, rgba(24, 35, 54, .98), rgba(13, 19, 30, .98));
+    box-shadow: 0 18px 48px rgba(0, 0, 0, .18);
+}
+.rasa-workspace-kicker {
+    color: #91b8ff;
+    text-transform: uppercase;
+    font-size: .72rem;
+    font-weight: 850;
+    letter-spacing: .19em;
+    margin-bottom: .45rem;
+}
+.rasa-workspace-title {
+    color: #f5f7ff;
+    font-size: clamp(2.2rem, 4vw, 3.15rem);
+    line-height: 1.05;
+    letter-spacing: -.045em;
+    font-weight: 900;
+    margin: 0;
+}
+.rasa-workspace-subtitle {
+    color: #aebbd1;
+    font-size: .96rem;
+    margin-top: .75rem;
+}
+.rasa-workspace-subtitle span {
+    color: #dce8ff;
+    font-weight: 650;
+}
+
+/* Workflow navigation: clean, legible, and horizontally scrollable. */
+div[data-testid="stTabs"] {
+    margin-top: .25rem;
+}
+div[data-testid="stTabs"] > div:first-child {
+    gap: .3rem;
+    border-bottom: 1px solid rgba(137, 160, 200, .24);
+    padding: 0 .15rem;
+}
+div[data-testid="stTabs"] button[role="tab"] {
+    min-height: 3.1rem;
+    padding: .78rem .95rem;
+    border-radius: 11px 11px 0 0;
+    color: #aebbd1;
+    font-size: .9rem;
+    font-weight: 680;
+    white-space: nowrap;
+    background: transparent;
+    border: 0;
+}
+div[data-testid="stTabs"] button[role="tab"]:hover {
+    color: #f6f8ff;
+    background: rgba(105, 147, 220, .10);
+}
+div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+    color: #ffffff;
+    background: linear-gradient(180deg, rgba(91, 139, 220, .22), rgba(91, 139, 220, .045));
+    box-shadow: inset 0 -3px 0 #83adff;
+}
+div[data-testid="stTabs"] [data-testid="stTabContent"] {
+    padding-top: 1.8rem;
+}
+
+/* Form fields and content surfaces */
+div[data-testid="stTextArea"] textarea,
+div[data-testid="stTextInput"] input,
+div[data-testid="stNumberInput"] input,
+div[data-testid="stDateInput"] input,
+div[data-testid="stFileUploader"] section {
+    background: rgba(24, 31, 44, .92) !important;
+    border-color: rgba(135, 160, 202, .25) !important;
+    border-radius: 13px !important;
+}
+div[data-testid="stTextArea"] textarea:focus,
+div[data-testid="stTextInput"] input:focus {
+    border-color: #83adff !important;
+    box-shadow: 0 0 0 1px rgba(131, 173, 255, .22) !important;
+}
+.stButton > button, .stDownloadButton > button,
+div[data-testid="stFormSubmitButton"] button {
+    border-radius: 12px;
+    font-weight: 720;
+    min-height: 2.8rem;
+}
+div[data-testid="stExpander"] {
+    border-radius: 14px;
+    border-color: rgba(135, 160, 202, .22);
+    background: rgba(19, 27, 40, .55);
+}
+div[data-testid="stAlert"] {
+    border-radius: 13px;
+}
+[data-testid="stDataFrame"], [data-testid="stTable"] {
+    border-radius: 14px;
+    border: 1px solid rgba(135, 160, 202, .22);
+    overflow: hidden;
+}
+@media (max-width: 850px) {
+    .block-container {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
+    .rasa-workspace-header {
+        padding: 1.25rem;
+        border-radius: 17px;
+    }
+    div[data-testid="stTabs"] button[role="tab"] {
+        padding: .68rem .72rem;
+        font-size: .82rem;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
+
 # Authenticated session: switch all local persistence paths to this account's directory.
 _current_user = st.session_state["rasa_user"]
 _USER_DATA_DIR = Path(__file__).resolve().parent / "rasaai_private_data" / "users" / _current_user["user_id"]
@@ -537,7 +702,16 @@ AUDITION_ACTIVITY_PATH = _USER_DATA_DIR / "rasaai_audition_activity.json"
 
 with st.sidebar:
     st.markdown("### 🔐 Private Vault")
-    st.caption(_current_user["email"])
+    st.markdown(
+        '<div style="padding:.85rem .9rem;margin:.35rem 0 1rem;'
+        'border:1px solid rgba(135,164,220,.22);border-radius:14px;'
+        'background:rgba(255,255,255,.035);">'
+        '<div style="font-size:.68rem;font-weight:800;letter-spacing:.14em;'
+        'color:#8fb7ff;text-transform:uppercase;margin-bottom:.35rem;">Signed in</div>'
+        f'<div style="font-size:.88rem;color:#e8efff;overflow-wrap:anywhere;">'
+        f'{html.escape(_current_user["email"])}</div></div>',
+        unsafe_allow_html=True,
+    )
     if st.button("Log out", use_container_width=True, key="rasa_logout"):
         for key in list(st.session_state.keys()):
             del st.session_state[key]
@@ -887,8 +1061,19 @@ def build_audition_export_bundle(items):
 if "rasa_audition_comparisons" not in st.session_state:
     st.session_state["rasa_audition_comparisons"] = load_audition_library()
 
-st.title("RASA AI")
-st.caption(f"Private workspace · Signed in as {_current_user['email']}")
+st.markdown(
+    f"""
+    <section class="rasa-workspace-header">
+      <div class="rasa-workspace-kicker">Audition intelligence · Casting support</div>
+      <h1 class="rasa-workspace-title">🎬 RASA AI</h1>
+      <div class="rasa-workspace-subtitle">
+        Private workspace <span>·</span> Signed in as
+        <span>{html.escape(_current_user['email'])}</span>
+      </div>
+    </section>
+    """,
+    unsafe_allow_html=True,
+)
 if st.session_state.pop("rasa_auth_notice", None):
     st.success("Your private vault is unlocked.")
 
