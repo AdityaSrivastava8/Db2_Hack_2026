@@ -1350,51 +1350,227 @@ workflow_tabs = st.tabs([
 
 
 # ---------- Traditional NLP / deterministic screenplay parsing ----------
+
+# ---------- Screenplay-grounded character performance intelligence ----------
+# These are observable script cues, not personality or emotion diagnoses.
 ROLE_KEYWORDS = {
-    "high movement": ["runs", "running", "chases", "fight", "fights", "jumps", "dances", "falls", "struggles", "moves quickly"],
-    "hand gestures": ["points", "pointing", "gestures", "gesture", "waves", "waves a hand", "raises a hand", "raises his hand", "raises her hand", "clenches a fist", "reaches", "signals"],
-    "stillness / controlled posture": ["stands still", "stands motionless", "sits silently", "freezes", "does not move", "remains motionless", "holds still", "standing still"],
-    "physical tension": ["shakes", "shake", "trembles", "trembling", "tremble", "paces", "pacing", "clenches", "clenching", "tightens", "breathes heavily", "hands trembling"],
-    "visible expression changes (review manually)": ["smiles", "laughs", "cries", "weeps", "frowns", "grimaces", "gasps"],
-    "dialogue-heavy scene": ["says", "asks", "shouts", "whispers", "replies", "answers", "yells", "speaks"],
+    "high movement": [
+        "runs", "running", "chases", "fights", "jumps", "dances", "falls",
+        "struggles", "rushes", "lunges", "stumbles", "sprints", "moves quickly",
+    ],
+    "hand gestures": [
+        "points", "pointing", "gestures", "waves", "raises a hand",
+        "raises his hand", "raises her hand", "clenches a fist", "reaches",
+        "signals", "grabs", "holds out", "pushes away",
+    ],
+    "stillness / controlled posture": [
+        "stands still", "stands motionless", "sits silently", "freezes",
+        "does not move", "remains motionless", "holds still", "standing still",
+        "stares", "doesn't move",
+    ],
+    "physical tension": [
+        "shakes", "trembles", "trembling", "paces", "clenches", "clenching",
+        "tightens", "breathes heavily", "hands trembling", "fists tighten",
+        "jaw tightens", "wrings her hands", "wrings his hands",
+    ],
+    "visible expression changes (review manually)": [
+        "smiles", "laughs", "cries", "weeps", "frowns", "grimaces", "gasps",
+        "winces", "looks away", "tears", "eyes widen",
+    ],
+    "dialogue-heavy scene": [],
 }
+
 AUDITION_TESTS = {
-    "high movement": "Perform the scripted physical action at a safe, controlled pace.",
-    "hand gestures": "Deliver the same short line once with natural gestures and once with restrained gestures.",
-    "stillness / controlled posture": "Deliver a short line while maintaining a deliberate, stable posture.",
-    "physical tension": "Perform the scene using the written physical action; avoid forcing or exaggerating movement.",
-    "visible expression changes (review manually)": "Perform the scene and have a human reviewer note visible expression changes in context.",
-    "dialogue-heavy scene": "Read the same lines with the intended pacing and emphasis; review audio separately if needed.",
+    "high movement": "Recreate the written movement safely, then repeat it with controlled pacing. Review clarity and continuity rather than intensity.",
+    "hand gestures": "Deliver the same line once with the scripted gesture and once with restrained movement. Compare whether the gesture supports the line.",
+    "stillness / controlled posture": "Deliver the line while holding the written stillness. Check whether attention and intention remain readable without extra movement.",
+    "physical tension": "Recreate only the physical action written in the script. Check whether tension is legible without forcing or exaggerating it.",
+    "visible expression changes (review manually)": "Perform the beat as written. Ask the reviewer to note the visible change and the exact moment it occurs; do not assume an emotion from the gesture alone.",
+    "dialogue-heavy scene": "Read a representative passage with the scripted pauses and delivery directions. Review pace, intelligibility and consistency.",
 }
 
+CHARACTER_INTERPRETATIONS = {
+    "high movement": ("Physical urgency / active movement", "Can the performer execute the scripted movement clearly and safely without losing the scene's objective?"),
+    "hand gestures": ("Expressive use of hands and gesture", "Do gestures feel motivated by the scene, or do they distract from the dialogue?"),
+    "stillness / controlled posture": ("Stillness / controlled physical presence", "Can the performer sustain a readable, intentional stillness without becoming visually disengaged?"),
+    "physical tension": ("Visible physical tension", "Can tension be communicated through the specific written action without exaggeration?"),
+    "visible expression changes (review manually)": ("Observable expression changes", "Can the performer make the written physical beat readable while keeping the interpretation open to the director?"),
+    "dialogue-heavy scene": ("Dialogue-led performance", "Can the performer sustain the passage with clear phrasing, pace and the script's stated delivery?"),
+}
+
+_ACTION_VERBS = {
+    "high movement", "hand gestures", "stillness / controlled posture",
+    "physical tension", "visible expression changes (review manually)",
+}
+_SCENE_HEADING_RE = re.compile(r"^\s*(?:INT\.|EXT\.|INT/EXT\.|INT\./EXT\.)", re.I)
+_TRANSITION_RE = re.compile(r"^\s*(?:CUT TO:|FADE IN:|FADE OUT\.?|DISSOLVE TO:|SMASH CUT TO:|THE END)\s*$", re.I)
 
 
-def extract_character_specific_cues(story, character_name):
-    """Find keyword evidence near a character's name/cue lines; heuristic only."""
-    lines = story.splitlines()
-    name_re = re.compile(r"(?<!\w)" + re.escape(character_name) + r"(?!\w)", re.I)
-    relevant_indices = set()
-    for idx, line in enumerate(lines):
-        if name_re.search(line):
-            relevant_indices.update(range(max(0, idx - 2), min(len(lines), idx + 3)))
-        # In screenplay format, the character cue is often on a line by itself,
-        # with action text immediately before or after the dialogue block.
-        if line.strip().casefold() == character_name.casefold():
-            relevant_indices.update(range(max(0, idx - 3), min(len(lines), idx + 5)))
-    context = "\n".join(lines[i] for i in sorted(relevant_indices))
-    context_lower = context.lower()
-    cues = []
+def _character_name_pattern(name):
+    return re.compile(r"(?<![\w])" + re.escape(name) + r"(?![\w])", re.I)
+
+
+def _split_sentences(text):
+    """Small deterministic sentence splitter suitable for screenplay action lines."""
+    return [part.strip() for part in re.split(r"(?<=[.!?])\s+(?=[A-Z(])", text) if part.strip()]
+
+
+def _cue_hits(text):
+    """Return cue labels and matched script words from one evidence sentence."""
+    found = []
+    lower = text.casefold()
     for label, words in ROLE_KEYWORDS.items():
-        hits = [word for word in words if re.search(r"\b" + re.escape(word) + r"\b", context_lower)]
+        hits = [
+            word for word in words
+            if re.search(r"(?<!\w)" + re.escape(word) + r"(?!\w)", lower)
+        ]
         if hits:
-            cues.append({
-                "requirement": label,
-                "evidence_in_context": "Nearby text contains: " + ", ".join(hits[:4]),
-                "context_excerpt": context[:500],
-                "audition_test": AUDITION_TESTS[label],
-                "status": "heuristic — verify manually"
-            })
-    return cues
+            found.append((label, hits))
+    return found
+
+
+def extract_character_specific_cues(story, character_name, all_character_names=None):
+    """
+    Attribute only screenplay action sentences that explicitly name this character.
+    Dialogue is attributed by screenplay speaker cue; ambiguous pronouns are not guessed.
+    """
+    all_names = list(all_character_names or [character_name])
+    patterns = {name: _character_name_pattern(name) for name in all_names}
+    target_pattern = patterns[character_name]
+    evidence_by_label = {}
+    dialogue_blocks = 0
+    dialogue_words = 0
+    ambiguous_actions = []
+
+    lines = story.splitlines()
+    current_speaker = None
+    in_dialogue = False
+    pending_action = []
+
+    def flush_action_block(block):
+        if not block:
+            return
+        joined = " ".join(x.strip() for x in block if x.strip())
+        for sentence in _split_sentences(joined):
+            mentioned = [name for name, pattern in patterns.items() if pattern.search(sentence)]
+            if len(mentioned) == 1:
+                owner = mentioned[0]
+                if owner.casefold() != character_name.casefold():
+                    continue
+                for label, hits in _cue_hits(sentence):
+                    if label == "dialogue-heavy scene":
+                        continue
+                    evidence_by_label.setdefault(label, []).append({
+                        "excerpt": sentence[:320],
+                        "matched_words": hits[:4],
+                        "source": "Explicitly named character in action text",
+                    })
+            elif len(mentioned) > 1:
+                # Do not assign shared action to every character.
+                if target_pattern.search(sentence):
+                    ambiguous_actions.append(sentence[:240])
+
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line:
+            flush_action_block(pending_action)
+            pending_action = []
+            in_dialogue = False
+            current_speaker = None
+            continue
+        if _SCENE_HEADING_RE.match(line) or _TRANSITION_RE.match(line):
+            flush_action_block(pending_action)
+            pending_action = []
+            in_dialogue = False
+            current_speaker = None
+            continue
+
+        # A character cue is a standalone ALL-CAPS line (optionally with a parenthetical).
+        cue_match = re.match(r"^([A-Z][A-Z0-9 ._'’-]{1,35}?)(?:\s*\(([^)]*)\))?$", line)
+        if cue_match:
+            candidate = normalize_name(cue_match.group(1))
+            known = next((n for n in all_names if n.casefold() == candidate.casefold()), None)
+            if known:
+                flush_action_block(pending_action)
+                pending_action = []
+                current_speaker = known
+                in_dialogue = True
+                if known.casefold() == character_name.casefold():
+                    dialogue_blocks += 1
+                    parenthetical = (cue_match.group(2) or "").strip()
+                    if parenthetical:
+                        for label, hits in _cue_hits(parenthetical):
+                            evidence_by_label.setdefault(label, []).append({
+                                "excerpt": parenthetical[:320],
+                                "matched_words": hits[:4],
+                                "source": "Speaker parenthetical",
+                            })
+                continue
+
+        # Parentheticals immediately beneath a speaker cue describe delivery/action.
+        if in_dialogue and current_speaker:
+            if line.startswith("(") and line.endswith(")"):
+                if current_speaker.casefold() == character_name.casefold():
+                    for label, hits in _cue_hits(line):
+                        evidence_by_label.setdefault(label, []).append({
+                            "excerpt": line[:320],
+                            "matched_words": hits[:4],
+                            "source": "Speaker parenthetical",
+                        })
+                continue
+            # Dialogue belongs to the current speaker until a blank line or next cue.
+            if current_speaker.casefold() == character_name.casefold():
+                dialogue_words += len(re.findall(r"\b[\w'-]+\b", line))
+            continue
+
+        # Outside a dialogue block, treat text as action. Attribution requires a name.
+        pending_action.append(line)
+
+    flush_action_block(pending_action)
+
+    cues = []
+    for label, evidence_items in evidence_by_label.items():
+        # Keep distinct evidence, avoiding repeated duplicate sentences.
+        unique = []
+        seen = set()
+        for item in evidence_items:
+            key = item["excerpt"].casefold()
+            if key not in seen:
+                seen.add(key)
+                unique.append(item)
+        title, watchpoint = CHARACTER_INTERPRETATIONS.get(
+            label, (label.replace("/", " / ").title(), "Review the written evidence in scene context.")
+        )
+        cues.append({
+            "requirement": label,
+            "characteristic": title,
+            "evidence_items": unique[:8],
+            "evidence_in_context": "Evidence: " + " | ".join(item["excerpt"] for item in unique[:3]),
+            "context_excerpt": "\n".join(item["excerpt"] for item in unique[:3]),
+            "audition_test": AUDITION_TESTS[label],
+            "director_watchpoint": watchpoint,
+            "status": "screenplay-supported interpretation — director review required",
+        })
+
+    # Dialogue volume is a structural fact, not a personality inference.
+    if dialogue_blocks >= 2 or dialogue_words >= 35:
+        title, watchpoint = CHARACTER_INTERPRETATIONS["dialogue-heavy scene"]
+        cues.append({
+            "requirement": "dialogue-heavy scene",
+            "characteristic": title,
+            "evidence_items": [{
+                "excerpt": f"{dialogue_blocks} dialogue block(s), approximately {dialogue_words} spoken word(s) attributed to {character_name}.",
+                "matched_words": [],
+                "source": "Screenplay speaker-cue structure",
+            }],
+            "evidence_in_context": f"{dialogue_blocks} dialogue block(s); approximately {dialogue_words} spoken word(s).",
+            "context_excerpt": "",
+            "audition_test": AUDITION_TESTS["dialogue-heavy scene"],
+            "director_watchpoint": watchpoint,
+            "status": "structural screenplay observation",
+        })
+
+    return cues, ambiguous_actions
 
 
 def extract_pdf_text(uploaded_file):
@@ -1409,11 +1585,19 @@ def normalize_name(name):
 
 
 def parse_screenplay(story, manually_entered_names=""):
-    """Heuristic parser only. Screenplay character cues are usually ALL CAPS on their own line."""
+    """
+    Deterministic screenplay parser.
+    It attributes action only when the character is explicitly named and dialogue by speaker cue.
+    Ambiguous pronouns are deliberately left unattributed rather than copied across profiles.
+    """
     lines = [line.rstrip() for line in story.splitlines()]
     names = []
     cue_pattern = re.compile(r"^[ \t]{0,12}([A-Z][A-Z0-9 ._'’-]{1,35})(?:\s*\([^)]*\))?[ \t]*$")
-    excluded = {"INT", "EXT", "INT./EXT", "EXT./INT", "CUT TO", "FADE IN", "FADE OUT", "CONTINUED", "CONT'D", "THE END", "MONTAGE", "DAY", "NIGHT", "LATER", "CONTINUOUS"}
+    excluded = {
+        "INT", "EXT", "INT./EXT", "EXT./INT", "CUT TO", "FADE IN", "FADE OUT",
+        "CONTINUED", "CONT'D", "THE END", "MONTAGE", "DAY", "NIGHT", "LATER",
+        "CONTINUOUS", "MORNING", "EVENING",
+    }
     for line in lines:
         stripped = line.strip()
         if not stripped or len(stripped) > 38:
@@ -1425,46 +1609,72 @@ def parse_screenplay(story, manually_entered_names=""):
         upper = raw.upper()
         if upper in excluded or upper.startswith(("INT. ", "EXT. ", "INT/EXT")):
             continue
-        if not re.search(r"[A-Z]", upper):
-            continue
-        # Exclude common scene headings and transitions.
         if any(upper.startswith(prefix) for prefix in ["INT ", "EXT ", "FADE ", "CUT ", "DISSOLVE ", "SMASH CUT"]):
             continue
-        # Avoid obvious action words; keep two-word names and likely cue names.
         if upper in {"CONTINUED", "CONTINUOUS", "SAME", "LATER", "DAY", "NIGHT", "MORNING", "EVENING"}:
             continue
-        if raw not in names:
+        # Avoid treating obvious action fragments as character cues.
+        if len(raw.split()) > 4:
+            continue
+        if raw.casefold() not in {n.casefold() for n in names}:
             names.append(raw.title() if raw.isupper() else raw)
+
     for raw in re.split(r"[,;\n]+", manually_entered_names or ""):
         name = normalize_name(raw)
-        if name and name.lower() not in {n.lower() for n in names}:
+        if name and name.casefold() not in {n.casefold() for n in names}:
             names.append(name)
-    # Extract scene headings for a basic synopsis cue, not a generated summary.
-    scene_count = sum(1 for line in lines if re.match(r"^\s*(INT\.|EXT\.|INT/EXT\.|INT\./EXT\.)", line, re.I))
+
+    names = names[:20]
+    scene_count = sum(1 for line in lines if _SCENE_HEADING_RE.match(line))
     character_profiles = []
-    lowered = story.lower()
-    for name in names[:20]:
-        # A rough, explicit frequency count. Not semantic understanding.
-        mentions = len(re.findall(r"(?<!\w)" + re.escape(name) + r"(?!\w)", story, re.I))
-        cues = extract_character_specific_cues(story, name)
+    for name in names:
+        cues, ambiguous = extract_character_specific_cues(story, name, names)
+        name_re = _character_name_pattern(name)
+        explicit_mentions = len(name_re.findall(story))
+        speaker_mentions = sum(
+            1 for line in lines
+            if normalize_name(re.sub(r"\([^)]*\)", "", line.strip())).casefold() == name.casefold()
+        )
+        characteristics = list(dict.fromkeys(
+            cue["characteristic"] for cue in cues
+        ))
+        watchpoints = list(dict.fromkeys(
+            cue["director_watchpoint"] for cue in cues
+        ))
         character_profiles.append({
             "name": name,
-            "mention_count": mentions,
-            "role_in_story": "Not inferred by this rule-based prototype",
-            "character_description": "Not automatically inferred. Add a human-written description below if needed.",
+            "mention_count": explicit_mentions + speaker_mentions,
+            "role_in_story": "Not inferred automatically",
+            "character_description": (
+                "Potential performance characteristics are derived only from the evidence listed below. "
+                "They are audition considerations, not fixed personality labels."
+                if cues else
+                "The screenplay did not provide enough clearly attributable evidence for an automatic profile."
+            ),
+            "potential_characteristics": characteristics,
+            "director_watchpoints": watchpoints,
             "performance_requirements": cues,
-            "limitations": "Cues are matched from text near this character's name/cue lines. Proximity is heuristic and may still associate unrelated actions; verify manually."
+            "ambiguous_action_count": len(ambiguous),
+            "ambiguous_action_examples": ambiguous[:5],
+            "limitations": (
+                "Actions are attributed only when this character is explicitly named in an action sentence, "
+                "or when a delivery direction appears in this character's speaker block. Ambiguous pronouns "
+                "and shared actions are not assigned. Dialogue content is not treated as proof of personality."
+            ),
         })
+
     return {
-        "method": "Rule-based parsing; no LLM or trained semantic model",
+        "method": "Deterministic screenplay-structure and explicit-evidence analysis; no LLM or trained semantic model",
         "story_characters": character_profiles,
         "screenplay_scene_heading_count": scene_count,
         "notes": [
-            "Character candidates are detected from ALL-CAPS screenplay cue lines and/or names entered by the user.",
-            "Prose stories may not contain screenplay-style character cues; enter character names manually in that case.",
-            "Character cue matches use nearby text and are approximate; verify that each action belongs to the character.",
-            "This tool does not infer personality, mental health, or internal emotion from appearance."
-        ]
+            "Character dialogue is attributed from standalone screenplay speaker cues.",
+            "Stage directions are attributed only when the character is explicitly named in the action sentence.",
+            "Ambiguous pronouns (for example, 'she', 'he' or 'they') are not guessed or copied between characters.",
+            "Potential characteristics are cautious performance prompts supported by visible screenplay evidence, not personality diagnoses.",
+            "Dialogue content alone is not used to claim a character is brave, dishonest, loving, aggressive or otherwise psychologically defined.",
+            "Review every suggested interpretation against the complete scene before using it in casting.",
+        ],
     }
 
 
@@ -1586,26 +1796,95 @@ with workflow_tabs[0]:
 
     # Keep the workflow numbering stable: sections 1–4 are always visible.
 with workflow_tabs[1]:
-    _rasa_section_heading("02", "SCRIPT BREAKDOWN", "Character candidates and story cues")
+    _rasa_section_heading("02", "DIRECTOR'S CHARACTER BREAKDOWN", "Character Performance Intelligence")
     if story_report:
-        st.write(f"Detected {len(story_report['story_characters'])} character candidate(s) and {story_report['screenplay_scene_heading_count']} scene heading(s).")
-        for i, character in enumerate(story_report["story_characters"], 1):
-            with st.expander(f"{i}. {character['name']} · {character['mention_count']} name mention(s)", expanded=(i == 1)):
+        characters = story_report.get("story_characters", [])
+        st.write(
+            f"Analysed **{len(characters)} character profile(s)** across "
+            f"**{story_report['screenplay_scene_heading_count']} scene heading(s)**."
+        )
+        st.caption(
+            "Each observation below is tied to screenplay evidence. The system deliberately leaves "
+            "ambiguous actions unattributed instead of guessing which character performed them."
+        )
+
+        for i, character in enumerate(characters, 1):
+            cues = character.get("performance_requirements", [])
+            with st.expander(
+                f"{i:02d}  ·  {character['name']}  ·  {len(cues)} supported performance cue(s)",
+                expanded=(i == 1),
+            ):
+                st.markdown(f"### {character['name']}")
                 st.write(character["character_description"])
-                st.caption(character["limitations"])
-                if character["performance_requirements"]:
-                    st.markdown("**Nearby screenplay cues (verify manually)**")
-                    for req in character["performance_requirements"]:
-                        st.markdown(f"- **{req['requirement']}**")
-                        st.caption(req.get("evidence_in_context", req.get("evidence_in_story", "Keyword evidence found near this character; verify manually.")))
-                        st.caption(f"Audition test: {req['audition_test']}")
+
+                if character.get("potential_characteristics"):
+                    st.markdown("**Potential performance characteristics**")
+                    cols = st.columns(min(3, len(character["potential_characteristics"])))
+                    for idx, characteristic in enumerate(character["potential_characteristics"]):
+                        with cols[idx % len(cols)]:
+                            st.markdown(
+                                f"""
+                                <div style="padding:.8rem .9rem;min-height:76px;border:1px solid rgba(135,164,220,.28);
+                                border-radius:12px;background:linear-gradient(145deg,rgba(35,55,86,.72),rgba(19,31,49,.82));
+                                color:#eaf1ff;font-weight:750;">{html.escape(characteristic)}</div>
+                                """,
+                                unsafe_allow_html=True,
+                            )
+
+                if cues:
+                    st.markdown("**Screenplay evidence and director's watchpoints**")
+                    for cue_index, req in enumerate(cues, 1):
+                        st.markdown(f"**{cue_index}. {html.escape(req.get('characteristic', req['requirement']))}**")
+                        for evidence in req.get("evidence_items", []):
+                            excerpt = evidence.get("excerpt", "")
+                            source_label = evidence.get("source", "Screenplay evidence")
+                            st.markdown(
+                                f"""
+                                <div style="margin:.35rem 0 .55rem;padding:.75rem .9rem;border-left:3px solid #80adf5;
+                                border-radius:0 10px 10px 0;background:rgba(26,42,65,.72);">
+                                  <div style="color:#a9c8ff;font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;">
+                                    {html.escape(source_label)}
+                                  </div>
+                                  <div style="color:#edf3ff;margin-top:.25rem;">“{html.escape(excerpt)}”</div>
+                                </div>
+                                """,
+                                unsafe_allow_html=True,
+                            )
+                        st.caption("Director's watchpoint: " + req.get("director_watchpoint", "Review the evidence in scene context."))
+                        st.caption("Suggested audition exercise: " + req.get("audition_test", "Review the relevant scene."))
+                        st.divider()
                 else:
-                    st.write("No configured performance keywords were detected. Add explicit requirements manually during casting review.")
+                    st.info(
+                        "No clearly attributable performance evidence was found for this character. "
+                        "This is preferable to inventing traits from nearby text. Review the screenplay "
+                        "format or add director-defined requirements in the Casting Brief."
+                    )
+
+                if character.get("ambiguous_action_count"):
+                    st.warning(
+                        f"{character['ambiguous_action_count']} action sentence(s) also mention another "
+                        "known character and were not automatically assigned. Review these in the original scene."
+                    )
+                    for excerpt in character.get("ambiguous_action_examples", []):
+                        st.caption("Unassigned shared action: " + excerpt)
+
+                with st.expander("How this profile was built", expanded=False):
+                    st.caption(character["limitations"])
+
+        st.markdown("### Analysis method and limitations")
         for note in story_report["notes"]:
             st.caption("• " + note)
-        st.download_button("Download screenplay analysis (JSON)", json.dumps(story_report, indent=2, ensure_ascii=False), "rasaai_screenplay_analysis.json", "application/json")
+        st.download_button(
+            "Download screenplay analysis (JSON)",
+            json.dumps(story_report, indent=2, ensure_ascii=False),
+            "rasaai_screenplay_analysis.json",
+            "application/json",
+        )
     else:
-        st.info("This section will show detected character candidates and story cues after you enter a screenplay and click **Parse screenplay with rules**.")
+        st.info(
+            "Add a screenplay in the Screenplay workspace and select **Parse screenplay**. "
+            "Character profiles will then show evidence-backed performance characteristics and audition watchpoints."
+        )
 
     # ---------- Explicit role requirements for transparent matching ----------
 with workflow_tabs[2]:
