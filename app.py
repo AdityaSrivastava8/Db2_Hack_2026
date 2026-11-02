@@ -835,6 +835,24 @@ hr {
     box-shadow: inset 0 1px 0 rgba(255,255,255,.12);
 }
 .rasa-section-copy { min-width: 0; }
+
+/* Important screenplay evidence notes should be as readable as the main content. */
+.rasa-important-note {
+    margin: .55rem 0 .8rem;
+    padding: .7rem .9rem;
+    border-left: 3px solid #83adff;
+    border-radius: 8px;
+    background: rgba(35, 53, 80, .58);
+    color: #e2eaf8;
+    font-size: 1rem;
+    line-height: 1.65;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+.rasa-important-note strong {
+    color: #a9c8ff;
+    font-weight: 800;
+}
 .rasa-section-eyebrow {
     margin-bottom: .24rem;
     color: #91b8ff;
@@ -1850,8 +1868,20 @@ with workflow_tabs[1]:
                                 """,
                                 unsafe_allow_html=True,
                             )
-                        st.caption("Director's watchpoint: " + req.get("director_watchpoint", "Review the evidence in scene context."))
-                        st.caption("Suggested audition exercise: " + req.get("audition_test", "Review the relevant scene."))
+                        st.markdown(
+                            '<div class="rasa-important-note">'
+                            '<strong>Director\'s watchpoint:</strong> '
+                            f'{html.escape(str(req.get("director_watchpoint", "Review the evidence in scene context.")))}'
+                            '</div>',
+                            unsafe_allow_html=True,
+                        )
+                        st.markdown(
+                            '<div class="rasa-important-note">'
+                            '<strong>Suggested audition exercise:</strong> '
+                            f'{html.escape(str(req.get("audition_test", "Review the relevant scene.")))}'
+                            '</div>',
+                            unsafe_allow_html=True,
+                        )
                         st.divider()
                 else:
                     st.info(
@@ -1866,7 +1896,13 @@ with workflow_tabs[1]:
                         "known character and were not automatically assigned. Review these in the original scene."
                     )
                     for excerpt in character.get("ambiguous_action_examples", []):
-                        st.caption("Unassigned shared action: " + excerpt)
+                        st.markdown(
+                            '<div class="rasa-important-note">'
+                            '<strong>Unassigned shared action:</strong> '
+                            f'{html.escape(str(excerpt))}'
+                            '</div>',
+                            unsafe_allow_html=True,
+                        )
 
                 with st.expander("How this profile was built", expanded=False):
                     st.caption(character["limitations"])
