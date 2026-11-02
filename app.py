@@ -137,10 +137,6 @@ hr {
 # ---------- RASA AI Private Vault authentication + public introduction ----------
 def _render_intro_page():
     # One continuous, scrollable introduction panel matching the Detective AI layout.
-    app_dir = Path(__file__).resolve().parent
-    artwork_path = app_dir / "assets" / "navarasa_artwork.png"
-    if not artwork_path.is_file():
-        artwork_path = app_dir / "navarasa_artwork.png"
     intro_html = f"""
     <div class="detective-intro-panel">
       <h1>🎬 RASA AI: Audition Intelligence &amp; Casting Support</h1>
@@ -199,7 +195,6 @@ def _render_intro_page():
         Navarasa literally means “nine rasas,” representing nine fundamental aesthetic moods
         associated with the <i>Natyashastra</i> tradition.
       </p>
-      <!-- NAVARASA_IMAGE -->
       <div class="rasa-grid">
         <div><b>Shringara</b><span>Love / Beauty</span></div>
         <div><b>Hasya</b><span>Laughter / Joy</span></div>
@@ -315,28 +310,10 @@ $env:DB2_SSL = "true"</pre>
       <p class="closing-line">JAI HIND IN</p>
     </div>
     """
-    # Streamlit's Markdown parser treats indented HTML lines as code blocks.
-    # Normalize every line before splitting so no literal HTML tags leak into the page.
-    intro_html = "\n".join(line.lstrip() for line in intro_html.splitlines()).strip()
-    intro_before, intro_after = intro_html.split("<!-- NAVARASA_IMAGE -->", 1)
-    # Keep every HTML block balanced. Streamlit sanitizes unclosed HTML across
-    # separate markdown calls, which previously broke the remainder of the page.
-    st.markdown(intro_before + "\n</div>", unsafe_allow_html=True)
-    if not artwork_path.is_file():
-        st.error(
-            "Navarasa artwork is missing. Place navarasa_artwork.png in the "
-            "assets folder beside app.py."
-        )
-    else:
-        st.image(
-            str(artwork_path),
-            caption="Navarasa — the nine human expressions",
-            width=860,
-        )
-    st.markdown(
-        '<div class="detective-intro-panel">' + intro_after,
-        unsafe_allow_html=True,
-    )
+    # Render the complete introduction as one balanced HTML block.
+    # Normalize indentation so HTML is rendered as markup, not as a code block.
+    intro_html = "\\n".join(line.lstrip() for line in intro_html.splitlines()).strip()
+    st.markdown(intro_html, unsafe_allow_html=True)
 
 
 # Detective AI-inspired layout: fixed-width left vault sidebar + one long intro card.
