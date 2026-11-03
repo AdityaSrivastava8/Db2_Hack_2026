@@ -2607,111 +2607,112 @@ with workflow_tabs[3]:
         # Translate technical measurements into plain language for directors and casting reviewers.
         # This is descriptive evidence only: it must not infer internal emotion, acting quality,
         # personality, or role suitability from facial/body measurements.
-        st.subheader("What this analysis means — director's view")
-        st.caption(
-            "A plain-language guide to what the camera-based measurements noticed in this clip. "
-            "Use it to decide what to rewatch, not to score or rank the actor."
-        )
-        director_notes = []
-
-        pose_rate = video_report.get("pose_detection_rate")
-        if isinstance(pose_rate, (int, float)):
-            director_notes.append(
-                f"**Body visibility:** The actor's body pose could be followed in about {pose_rate * 100:.0f}% "
-                "of the sampled moments. This tells you how consistently the body was visible to the camera, "
-                "not how well the actor performed."
+        with st.container(border=True):
+            st.subheader("What this analysis means — director's view")
+            st.caption(
+                "A plain-language guide to what the camera-based measurements noticed in this clip. "
+                "Use it to decide what to rewatch, not to score or rank the actor."
             )
+            director_notes = []
 
-        face_rate = video_report.get("face_detection_rate")
-        if isinstance(face_rate, (int, float)):
-            director_notes.append(
-                f"**Face visibility:** The face was detected in about {face_rate * 100:.0f}% of sampled moments. "
-                "A lower figure can happen when the face turns away, is obscured, is too small, or lighting is poor."
-            )
-
-        movement_value = video_report.get("mean_normalized_landmark_movement_index")
-        if isinstance(movement_value, (int, float)):
-            if movement_value < 0.025:
-                movement_text = (
-                    "The sampled body landmarks changed relatively little from one sampled moment to the next. "
-                    "On screen, this clip may read as physically contained or still."
-                )
-            else:
-                movement_text = (
-                    "The sampled body landmarks changed more noticeably from one sampled moment to the next. "
-                    "There is visible body movement across the sampled moments."
-                )
-            director_notes.append(
-                f"**Body movement:** {movement_text} This is only a rough movement indicator; "
-                "it cannot tell whether the movement is intentional, expressive, or appropriate for the scene."
-            )
-
-        wrist_fraction = video_report.get("fraction_samples_with_wrist_above_shoulder")
-        if isinstance(wrist_fraction, (int, float)):
-            director_notes.append(
-                f"**Hand gestures:** In about {wrist_fraction * 100:.0f}% of pose-detected samples, "
-                "at least one wrist was above shoulder level. This can help you locate moments with raised-hand "
-                "gestures; it does not explain what the gesture means."
-            )
-
-        shoulder_tilt = video_report.get("mean_shoulder_tilt_index")
-        if isinstance(shoulder_tilt, (int, float)):
-            director_notes.append(
-                "**Shoulder line:** The app measured how level or tilted the shoulders appeared in the sampled "
-                "frames. This describes visible alignment only; it is not a judgement about confidence, mood, "
-                "or posture quality."
-            )
-
-        mouth_variability = video_report.get("mouth_opening_variability")
-        eye_variability = video_report.get("eye_openness_variability")
-        if isinstance(mouth_variability, (int, float)) or isinstance(eye_variability, (int, float)):
-            director_notes.append(
-                "**Facial movement:** The app tracked changes in mouth opening and eye openness. These are "
-                "small geometry measurements that may help you find moments to review, but they cannot establish "
-                "whether the actor is happy, sad, angry, afraid, sincere, or convincing."
-            )
-
-        if video_report.get("facial_expression_model_enabled"):
-            predictions = video_report.get("facial_expression_predictions") or []
-            if predictions:
+            pose_rate = video_report.get("pose_detection_rate")
+            if isinstance(pose_rate, (int, float)):
                 director_notes.append(
-                    f"**Experimental expression labels:** The optional model produced {len(predictions)} "
-                    "timestamped visual labels. Treat each as a fallible prompt to rewatch that moment—not as "
-                    "proof of what the actor felt or successfully portrayed."
+                    f"**Body visibility:** The actor's body pose could be followed in about {pose_rate * 100:.0f}% "
+                    "of the sampled moments. This tells you how consistently the body was visible to the camera, "
+                    "not how well the actor performed."
                 )
+
+            face_rate = video_report.get("face_detection_rate")
+            if isinstance(face_rate, (int, float)):
+                director_notes.append(
+                    f"**Face visibility:** The face was detected in about {face_rate * 100:.0f}% of sampled moments. "
+                    "A lower figure can happen when the face turns away, is obscured, is too small, or lighting is poor."
+                )
+
+            movement_value = video_report.get("mean_normalized_landmark_movement_index")
+            if isinstance(movement_value, (int, float)):
+                if movement_value < 0.025:
+                    movement_text = (
+                        "The sampled body landmarks changed relatively little from one sampled moment to the next. "
+                        "On screen, this clip may read as physically contained or still."
+                    )
+                else:
+                    movement_text = (
+                        "The sampled body landmarks changed more noticeably from one sampled moment to the next. "
+                        "There is visible body movement across the sampled moments."
+                    )
+                director_notes.append(
+                    f"**Body movement:** {movement_text} This is only a rough movement indicator; "
+                    "it cannot tell whether the movement is intentional, expressive, or appropriate for the scene."
+                )
+
+            wrist_fraction = video_report.get("fraction_samples_with_wrist_above_shoulder")
+            if isinstance(wrist_fraction, (int, float)):
+                director_notes.append(
+                    f"**Hand gestures:** In about {wrist_fraction * 100:.0f}% of pose-detected samples, "
+                    "at least one wrist was above shoulder level. This can help you locate moments with raised-hand "
+                    "gestures; it does not explain what the gesture means."
+                )
+
+            shoulder_tilt = video_report.get("mean_shoulder_tilt_index")
+            if isinstance(shoulder_tilt, (int, float)):
+                director_notes.append(
+                    "**Shoulder line:** The app measured how level or tilted the shoulders appeared in the sampled "
+                    "frames. This describes visible alignment only; it is not a judgement about confidence, mood, "
+                    "or posture quality."
+                )
+
+            mouth_variability = video_report.get("mouth_opening_variability")
+            eye_variability = video_report.get("eye_openness_variability")
+            if isinstance(mouth_variability, (int, float)) or isinstance(eye_variability, (int, float)):
+                director_notes.append(
+                    "**Facial movement:** The app tracked changes in mouth opening and eye openness. These are "
+                    "small geometry measurements that may help you find moments to review, but they cannot establish "
+                    "whether the actor is happy, sad, angry, afraid, sincere, or convincing."
+                )
+
+            if video_report.get("facial_expression_model_enabled"):
+                predictions = video_report.get("facial_expression_predictions") or []
+                if predictions:
+                    director_notes.append(
+                        f"**Experimental expression labels:** The optional model produced {len(predictions)} "
+                        "timestamped visual labels. Treat each as a fallible prompt to rewatch that moment—not as "
+                        "proof of what the actor felt or successfully portrayed."
+                    )
+                else:
+                    director_notes.append(
+                        "**Experimental expression labels:** The optional facial-expression model did not return "
+                        "usable labels for this clip. No conclusion about the actor's expression should be drawn "
+                        "from that part of the analysis."
+                    )
             else:
                 director_notes.append(
-                    "**Experimental expression labels:** The optional facial-expression model did not return "
-                    "usable labels for this clip. No conclusion about the actor's expression should be drawn "
-                    "from that part of the analysis."
+                    "**Experimental expression labels:** This optional model was not enabled, so this report does "
+                    "not contain model-generated expression labels."
                 )
-        else:
-            director_notes.append(
-                "**Experimental expression labels:** This optional model was not enabled, so this report does "
-                "not contain model-generated expression labels."
-            )
 
-        intended_portrayal_for_notes = st.session_state.get(
-            "rasa_character_portrayal_intent", "Not specified"
-        )
-        if intended_portrayal_for_notes != "Not specified":
-            director_notes.append(
-                f"**Director's intended portrayal:** You selected “{intended_portrayal_for_notes}”. "
-                "The measurements above describe visible movement and facial features; they do not confirm "
-                "whether the actor communicated that intended portrayal. Rewatch the relevant dialogue and scene beats."
+            intended_portrayal_for_notes = st.session_state.get(
+                "rasa_character_portrayal_intent", "Not specified"
             )
+            if intended_portrayal_for_notes != "Not specified":
+                director_notes.append(
+                    f"**Director's intended portrayal:** You selected “{intended_portrayal_for_notes}”. "
+                    "The measurements above describe visible movement and facial features; they do not confirm "
+                    "whether the actor communicated that intended portrayal. Rewatch the relevant dialogue and scene beats."
+                )
 
-        for note in director_notes:
-            st.markdown(f"- {note}")
+            for note in director_notes:
+                st.markdown(f"- {note}")
 
-        with st.expander("What this analysis cannot tell you"):
-            st.markdown(
-                "- It cannot determine an actor's real feelings, thoughts, personality, honesty, or mental health.\n"
-                "- It cannot decide whether an actor is talented, convincing, suitable for a role, or should be cast.\n"
-                "- A low movement value is not automatically good or bad; stillness may be right for one scene and wrong for another.\n"
-                "- Camera angle, framing, lighting, occlusion, clip length, and the action in the scene can change the measurements.\n"
-                "- Use the timestamps and the original audition video for human review. Do not use these measurements as an automated casting decision."
-            )
+            with st.expander("What this analysis cannot tell you"):
+                st.markdown(
+                    "- It cannot determine an actor's real feelings, thoughts, personality, honesty, or mental health.\n"
+                    "- It cannot decide whether an actor is talented, convincing, suitable for a role, or should be cast.\n"
+                    "- A low movement value is not automatically good or bad; stillness may be right for one scene and wrong for another.\n"
+                    "- Camera angle, framing, lighting, occlusion, clip length, and the action in the scene can change the measurements.\n"
+                    "- Use the timestamps and the original audition video for human review. Do not use these measurements as an automated casting decision."
+                )
 
         # Experimental portrayal evidence summary: reports observed model labels only;
         # it does not assign a suitability score or infer the actor's internal state.
