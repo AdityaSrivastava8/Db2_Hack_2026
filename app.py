@@ -2313,8 +2313,10 @@ with workflow_tabs[3]:
         playable_video_bytes = video_bytes
         video_format = {".mp4": "video/mp4", ".m4v": "video/mp4", ".mov": "video/quicktime", ".avi": "video/x-msvideo"}.get(video_suffix, "video/mp4")
         ffmpeg = shutil.which("ffmpeg")
+        # Keep a playable fallback even when FFmpeg is unavailable.
+        st.session_state["rasa_video_audio_bytes"] = None
         if not ffmpeg:
-            st.error("FFmpeg is not installed. Add 'ffmpeg' to packages.txt in the deployed app's root, then redeploy. Automatic browser-compatible conversion is required for reliable previews.")
+            st.info("FFmpeg is unavailable. The original video will be offered to the browser; use H.264 MP4 for the widest playback compatibility.")
         else:
             source_video_path = None
             converted_video_path = None
@@ -2333,10 +2335,34 @@ with workflow_tabs[3]:
                 )
                 if result.returncode != 0 or not os.path.exists(converted_video_path) or os.path.getsize(converted_video_path) <= 0:
                     detail = (result.stderr or "Unknown FFmpeg conversion error").strip()[-1200:]
-                    st.error(f"Video conversion failed; no broken preview was shown. Re-export as H.264 MP4. Details: {detail}")
+                    st.warning(f"Browser-compatible conversion was unavailable; trying the original video. Details: {detail}")
                 else:
                     playable_video_bytes = Path(converted_video_path).read_bytes()
                     video_format = "video/mp4"
+
+                # Extract the audition video's audio so the same take can be reviewed
+                # in the Vocal Analysis tab without requiring a second upload.
+                extracted_audio_path = None
+                try:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as audio_tmp:
+                        extracted_audio_path = audio_tmp.name
+                    audio_result = subprocess.run(
+                        [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", source_video_path,
+                         "-vn", "-ac", "1", "-ar", "22050", "-c:a", "pcm_s16le", extracted_audio_path],
+                        capture_output=True, text=True, timeout=120,
+                    )
+                    if (audio_result.returncode == 0 and os.path.exists(extracted_audio_path)
+                            and os.path.getsize(extracted_audio_path) > 44):
+                        st.session_state["rasa_video_audio_bytes"] = Path(extracted_audio_path).read_bytes()
+                        st.session_state["rasa_video_audio_name"] = f"{Path(actor_video.name).stem}_audio.wav"
+                    else:
+                        st.session_state["rasa_video_audio_bytes"] = None
+                finally:
+                    if extracted_audio_path and os.path.exists(extracted_audio_path):
+                        try:
+                            os.unlink(extracted_audio_path)
+                        except OSError:
+                            pass
             except Exception as convert_exc:
                 st.error(f"Could not prepare browser-compatible video: {type(convert_exc).__name__}: {convert_exc}")
             finally:
@@ -2347,15 +2373,15 @@ with workflow_tabs[3]:
                         except OSError:
                             pass
 
-        # Use the converted MP4 whenever FFmpeg is available; keep preview and analysis on the same bytes.
-        if ffmpeg and playable_video_bytes != video_bytes:
-            st.video(playable_video_bytes, format="video/mp4")
-        elif not ffmpeg:
-            # Original file may still play if the browser supports its container/codec.
-            st.video(video_bytes, format=video_format)
-        else:
-            # Conversion may have failed; do not label the original file as MP4.
-            st.video(video_bytes, format=video_format)
+        # Main audition video player. Use converted H.264 MP4 when available;
+        # otherwise pass the original bytes with their actual container MIME type.
+        st.subheader("Audition video player")
+        st.video(
+            playable_video_bytes if playable_video_bytes != video_bytes else video_bytes,
+            format="video/mp4" if playable_video_bytes != video_bytes else video_format,
+        )
+        if st.session_state.get("rasa_video_audio_bytes"):
+            st.caption("Audio track extracted from this video is available in the Vocal Analysis tab.")
 
         preview_path = None
         preview_cap = None
@@ -2363,7 +2389,8 @@ with workflow_tabs[3]:
             import cv2
             import numpy as np
             from PIL import Image
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4" if video_format == "video/mp4" else video_suffix) as preview_tmp:
+            preview_suffix = ".mp4" if playable_video_bytes != video_bytes else video_suffix
+            with tempfile.NamedTemporaryFile(delete=False, suffix=preview_suffix) as preview_tmp:
                 preview_tmp.write(playable_video_bytes)
                 preview_path = preview_tmp.name
             preview_cap = cv2.VideoCapture(preview_path)
@@ -2917,12 +2944,30 @@ with workflow_tabs[4]:
             "Character for this vocal audition (optional)",
             placeholder="e.g., Arjun", key="rasa_vocal_character_text",
         ) or "Unassigned"
-    audio_file = st.file_uploader(
-        "Upload audition audio", type=["wav", "mp3", "m4a", "flac", "ogg"], key="rasa_vocal_audio"
+    extracted_video_audio = st.session_state.get("rasa_video_audio_bytes")
+    audio_source_options = ["Upload a separate audio file"]
+    if extracted_video_audio:
+        audio_source_options.insert(0, "Use audio from the audition video")
+    selected_audio_source = st.radio(
+        "Audio source for vocal analysis",
+        audio_source_options,
+        horizontal=True,
+        key="rasa_vocal_audio_source",
     )
-    if audio_file:
-        audio_bytes = audio_file.getvalue()
-        audio_suffix = Path(audio_file.name).suffix.lower() or ".audio"
+    audio_file = None
+    if selected_audio_source == "Upload a separate audio file":
+        audio_file = st.file_uploader(
+            "Upload audition audio", type=["wav", "mp3", "m4a", "flac", "ogg"], key="rasa_vocal_audio"
+        )
+        selected_audio_bytes = audio_file.getvalue() if audio_file else None
+        selected_audio_name = audio_file.name if audio_file else None
+    else:
+        selected_audio_bytes = extracted_video_audio
+        selected_audio_name = st.session_state.get("rasa_video_audio_name", "audition_video_audio.wav")
+
+    if selected_audio_bytes:
+        audio_bytes = selected_audio_bytes
+        audio_suffix = Path(selected_audio_name or "audition.wav").suffix.lower() or ".wav"
         playable_audio_bytes = audio_bytes
         audio_format = {".wav": "audio/wav", ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".flac": "audio/flac", ".ogg": "audio/ogg"}.get(audio_suffix, "application/octet-stream")
         ffmpeg = shutil.which("ffmpeg")
@@ -2945,7 +2990,7 @@ with workflow_tabs[4]:
                     audio_format = "audio/wav"
                 else:
                     detail = (result.stderr or "Unknown FFmpeg conversion error").strip()[-800:]
-                    st.error(f"Audio conversion failed. Try exporting as PCM WAV. Details: {detail}")
+                    st.warning(f"Audio conversion was unavailable; trying the original audio file. Details: {detail}")
             except Exception as convert_exc:
                 st.error(f"Audio conversion failed: {type(convert_exc).__name__}: {convert_exc}")
             finally:
@@ -2956,8 +3001,10 @@ with workflow_tabs[4]:
                         except OSError:
                             pass
         else:
-            st.error("FFmpeg is not installed. Add 'ffmpeg' to packages.txt in the deployed app's root, then redeploy. WAV playback may work without conversion, but automatic normalization is unavailable.")
+            st.info("FFmpeg is unavailable. The original audio will be played directly; WAV is the most compatible format.")
+        st.subheader("Audition audio player")
         st.audio(playable_audio_bytes, format=audio_format)
+        st.caption(f"Selected audio: {selected_audio_name or 'uploaded audio'}")
         if st.button("Analyze vocal acoustics", type="primary", key="rasa_analyze_vocal"):
             try:
                 import librosa
