@@ -3188,9 +3188,6 @@ with workflow_tabs[4]:
                             pass
         else:
             st.info("FFmpeg is unavailable. The original audio will be played directly; WAV is the most compatible format.")
-        st.subheader("Audition audio player")
-        st.audio(playable_audio_bytes, format=audio_format)
-        st.caption(f"Selected audio: {selected_audio_name or 'uploaded audio'}")
         if st.button("Analyze vocal acoustics", type="primary", key="rasa_analyze_vocal"):
             try:
                 import librosa
