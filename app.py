@@ -1616,7 +1616,7 @@ def parse_screenplay(story, manually_entered_names=""):
         "CONTINUED", "CONT'D", "THE END", "MONTAGE", "DAY", "NIGHT", "LATER",
         "CONTINUOUS", "MORNING", "EVENING",
     }
-    for line in lines:
+    for line_index, line in enumerate(lines):
         stripped = line.strip()
         if not stripped or len(stripped) > 38:
             continue
@@ -1625,13 +1625,28 @@ def parse_screenplay(story, manually_entered_names=""):
             continue
         raw = normalize_name(match.group(1))
         upper = raw.upper()
-        if upper in excluded or upper.startswith(("INT. ", "EXT. ", "INT/EXT")):
+        if upper in excluded or upper in {"SCREENPLAY", "SCRIPT", "THE END", "END", "TITLE"}:
+            continue
+        if upper.startswith(("INT. ", "EXT. ", "INT/EXT")):
             continue
         if any(upper.startswith(prefix) for prefix in ["INT ", "EXT ", "FADE ", "CUT ", "DISSOLVE ", "SMASH CUT"]):
             continue
         if upper in {"CONTINUED", "CONTINUOUS", "SAME", "LATER", "DAY", "NIGHT", "MORNING", "EVENING"}:
             continue
-        # Avoid treating obvious action fragments as character cues.
+        # A character cue must introduce dialogue; this excludes title cards,
+        # screenplay labels, scene headings and closing markers.
+        following = line_index + 1
+        while following < len(lines) and not lines[following].strip():
+            following += 1
+        while following < len(lines) and re.fullmatch(r"\\s*\\([^)]{1,100}\\)\\s*", lines[following]):
+            following += 1
+        if following >= len(lines):
+            continue
+        next_text = lines[following].strip()
+        if (not next_text or cue_pattern.match(lines[following])
+                or _SCENE_HEADING_RE.match(next_text)
+                or next_text.upper().startswith(("FADE ", "CUT TO", "DISSOLVE ", "SMASH CUT"))):
+            continue
         if len(raw.split()) > 4:
             continue
         if raw.casefold() not in {n.casefold() for n in names}:
@@ -1993,13 +2008,24 @@ with workflow_tabs[2]:
                     st.caption("Text cues found near this character (verify manually): " + ", ".join(cue.get("requirement", "") for cue in detected_cues))
                 if suggested:
                     st.info("Suggested measurable targets are preselected from nearby screenplay cues. Review them before using.")
-                role_requirements[character["name"]] = st.multiselect(
+                selected_targets = st.multiselect(
                     "Select measurable audition targets",
                     requirement_options,
                     default=suggested,
                     key=f"role_requirements_{idx}_" + re.sub(r"[^a-zA-Z0-9_]", "_", character["name"]),
                     help="Targets map only to rough video measurements. They do not determine talent, emotion, personality, or casting suitability.",
                 )
+                custom_targets_text = st.text_area(
+                    "Write your own requirement",
+                    placeholder="Describe an additional role-specific requirement in your own words. Enter multiple requirements on separate lines.",
+                    key=f"custom_role_requirements_{idx}_" + re.sub(r"[^a-zA-Z0-9_]", "_", character["name"]),
+                    height=105,
+                )
+                custom_targets = [
+                    item.strip() for item in custom_targets_text.splitlines()
+                    if item.strip()
+                ]
+                role_requirements[character["name"]] = list(dict.fromkeys(selected_targets + custom_targets))
         st.session_state["rasa_role_requirements"] = role_requirements
 
         st.subheader("Character emotion-performance brief")
@@ -2016,6 +2042,24 @@ with workflow_tabs[2]:
             "What emotional portrayal does the scene call for?",
             portrayal_options,
             key="rasa_character_portrayal_intent",
+        )
+        custom_portrayal = st.text_area(
+            "Write your own emotional / performance brief",
+            placeholder=(
+                "Describe the exact portrayal you want the actor to explore, "
+                "including emotional shifts, intensity, restraint, or scene-specific nuances."
+            ),
+            key="rasa_custom_portrayal_brief",
+            height=110,
+        )
+        custom_review_text = st.text_area(
+            "Add your own human-review checklist points (optional)",
+            placeholder=(
+                "Add any specific things the director or casting team should review. "
+                "Enter one point per line."
+            ),
+            key="rasa_custom_portrayal_checklist",
+            height=100,
         )
         review_guides = {
             "Sadness / grief": [
@@ -2049,9 +2093,27 @@ with workflow_tabs[2]:
                 "Do not infer an internal emotional state from facial geometry alone.",
             ],
         }
-        st.markdown(f"**Human-review checklist for: {selected_portrayal}**")
+        brief_heading = selected_portrayal
+        if custom_portrayal.strip():
+            brief_heading += " + director's custom brief"
+        st.markdown(f"**Human-review checklist for: {brief_heading}**")
         for guide in review_guides[selected_portrayal]:
             st.markdown(f"- {guide}")
+        if custom_portrayal.strip():
+            st.markdown("**Director's custom portrayal brief**")
+            st.markdown(custom_portrayal.strip())
+        custom_review_points = [
+            point.strip() for point in custom_review_text.splitlines() if point.strip()
+        ]
+        if custom_review_points:
+            st.markdown("**Additional director-defined review points**")
+            for point in custom_review_points:
+                st.markdown(f"- {point}")
+        st.session_state["rasa_character_emotion_brief"] = {
+            "selected_portrayal": selected_portrayal,
+            "custom_portrayal": custom_portrayal.strip(),
+            "review_checklist": review_guides[selected_portrayal] + custom_review_points,
+        }
         # The selectbox key already stores this value in session_state.
         # Do not assign to it after the widget has been instantiated.
     else:
