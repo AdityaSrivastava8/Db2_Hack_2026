@@ -9,19 +9,25 @@ import re
 import shutil
 import tempfile
 import subprocess
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from datetime import datetime
 
-from rasa_auth import (
+from src.rasa_auth import (
     begin_registration, verify_registration, authenticate,
     begin_password_reset, finish_password_reset,
 )
-from pathlib import Path
 
 import streamlit as st
 from pypdf import PdfReader
 
 try:
-    from smart_audition_search import search_auditions as haystack_search_auditions
+    from src.smart_audition_search import search_auditions as haystack_search_auditions
     HAYSTACK_SEARCH_IMPORT_ERROR = None
 except Exception as exc:
     haystack_search_auditions = None
@@ -4061,7 +4067,7 @@ with workflow_tabs[7]:
     )
 
     try:
-        from db2_store import connection_status, ensure_schema, sync_auditions, fetch_auditions
+        from src.db2_store import connection_status, ensure_schema, sync_auditions, fetch_auditions
         DB2_MODULE_ERROR = None
     except Exception as exc:
         connection_status = ensure_schema = sync_auditions = fetch_auditions = None
