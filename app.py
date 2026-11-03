@@ -11,7 +11,7 @@ import tempfile
 import subprocess
 from datetime import datetime
 
-from src.rasa_auth import (
+from rasa_auth import (
     begin_registration, verify_registration, authenticate,
     begin_password_reset, finish_password_reset,
 )
@@ -21,7 +21,7 @@ import streamlit as st
 from pypdf import PdfReader
 
 try:
-    from src.smart_audition_search import search_auditions as haystack_search_auditions
+    from smart_audition_search import search_auditions as haystack_search_auditions
     HAYSTACK_SEARCH_IMPORT_ERROR = None
 except Exception as exc:
     haystack_search_auditions = None
@@ -459,11 +459,7 @@ if not st.session_state["rasa_user"]:
             else:
                 st.error("The Gmail ID or password is incorrect.")
 
-        auth_flow_pending = bool(
-            st.session_state.get("rasa_pending_email")
-            or st.session_state.get("rasa_reset_email")
-        )
-        with st.expander("Create account / Forgot password", expanded=auth_flow_pending):
+        with st.expander("Create account / Forgot password"):
             auth_mode = st.radio(
                 "Account action", ["Create Account", "Forgot Password"],
                 label_visibility="collapsed", key="rasa_auth_mode",
@@ -471,117 +467,62 @@ if not st.session_state["rasa_user"]:
             if auth_mode == "Create Account":
                 with st.form("rasa_register_form"):
                     register_email = st.text_input("Gmail ID for registration")
-                    register_password = st.text_input(
-                        "Create a unique password (at least 12 characters)", type="password"
-                    )
+                    register_password = st.text_input("Create a password (at least 4 characters)", type="password")
                     register_confirm = st.text_input("Confirm password", type="password")
-                    request_code = st.form_submit_button(
-                        "Send verification OTP", use_container_width=True
-                    )
+                    request_code = st.form_submit_button("Send verification OTP", use_container_width=True)
                 if request_code:
                     if register_password != register_confirm:
                         st.error("The passwords do not match.")
                     else:
                         try:
-                            normalized_email = register_email.strip().lower()
-                            begin_registration(normalized_email, register_password)
-                            st.session_state["rasa_pending_email"] = normalized_email
-                            st.session_state.pop("rasa_reset_email", None)
-                            st.session_state.pop("rasa_registration_otp", None)
-                            st.session_state["rasa_auth_notice"] = (
-                                f"Verification code sent to {normalized_email}. "
-                                "Enter it in the verification panel on the main page."
-                            )
+                            begin_registration(register_email, register_password)
+                            st.session_state["rasa_pending_email"] = register_email.strip().lower()
+                            st.success("Verification code sent. Check your Gmail inbox.")
+                        except Exception as exc:
+                            st.error(str(exc))
+                if st.session_state.get("rasa_pending_email"):
+                    with st.form("rasa_verify_register_form"):
+                        otp = st.text_input("6-digit verification code", max_chars=6)
+                        verify = st.form_submit_button("Verify Gmail & create vault", use_container_width=True)
+                    if verify:
+                        try:
+                            user = verify_registration(st.session_state["rasa_pending_email"], otp)
+                            st.session_state["rasa_user"] = user
+                            st.session_state.pop("rasa_pending_email", None)
                             st.rerun()
                         except Exception as exc:
                             st.error(str(exc))
             else:
                 with st.form("rasa_forgot_form"):
                     reset_email = st.text_input("Registered Gmail ID")
-                    send_reset = st.form_submit_button(
-                        "Send password reset OTP", use_container_width=True
-                    )
+                    send_reset = st.form_submit_button("Send password reset OTP", use_container_width=True)
                 if send_reset:
                     try:
-                        normalized_email = reset_email.strip().lower()
-                        begin_password_reset(normalized_email)
-                        st.session_state["rasa_reset_email"] = normalized_email
-                        st.session_state.pop("rasa_pending_email", None)
-                        st.session_state.pop("rasa_reset_otp", None)
-                        st.session_state["rasa_auth_notice"] = (
-                            f"Password reset code sent to {normalized_email}. "
-                            "Enter it in the verification panel on the main page."
-                        )
-                        st.rerun()
+                        begin_password_reset(reset_email)
+                        st.session_state["rasa_reset_email"] = reset_email.strip().lower()
+                        st.success("Password reset code sent to your Gmail.")
                     except Exception as exc:
                         st.error(str(exc))
+                if st.session_state.get("rasa_reset_email"):
+                    with st.form("rasa_reset_verify_form"):
+                        reset_otp = st.text_input("6-digit reset code", max_chars=6)
+                        new_password = st.text_input("New password (at least 4 characters)", type="password")
+                        confirm_new_password = st.text_input("Confirm new password", type="password")
+                        finish_reset = st.form_submit_button("Verify code & reset password", use_container_width=True)
+                    if finish_reset:
+                        if new_password != confirm_new_password:
+                            st.error("The passwords do not match.")
+                        else:
+                            try:
+                                finish_password_reset(
+                                    st.session_state["rasa_reset_email"], reset_otp, new_password
+                                )
+                                st.session_state.pop("rasa_reset_email", None)
+                                st.success("Password reset. Sign in with your new password.")
+                                st.rerun()
+                            except Exception as exc:
+                                st.error(str(exc))
         st.caption("Private local storage · Gmail verification required for new accounts")
-
-    # Keep OTP validation in the MAIN PAGE, not inside the sidebar/expander.
-    # This makes the validation controls visible regardless of sidebar scrolling
-    # or whether the account expander is collapsed.
-    pending_registration_email = st.session_state.get("rasa_pending_email")
-    pending_reset_email = st.session_state.get("rasa_reset_email")
-
-    if pending_registration_email:
-        st.markdown("## Verify your Gmail address")
-        st.info(
-            f"A 6-digit verification code was sent to **{pending_registration_email}**. "
-            "Enter that code below to create and unlock your private vault."
-        )
-        with st.form("rasa_verify_register_main_form", clear_on_submit=False):
-            otp = st.text_input(
-                "Enter your 6-digit verification code",
-                max_chars=6,
-                key="rasa_registration_otp_main",
-                placeholder="000000",
-            )
-            verify = st.form_submit_button(
-                "Verify Gmail & unlock my private vault",
-                use_container_width=True,
-            )
-        if verify:
-            try:
-                user = verify_registration(pending_registration_email, otp)
-                st.session_state["rasa_user"] = user
-                st.session_state.pop("rasa_pending_email", None)
-                st.session_state.pop("rasa_registration_otp_main", None)
-                st.session_state["rasa_auth_notice"] = "Gmail verified. Your private vault is unlocked."
-                st.rerun()
-            except Exception as exc:
-                st.error(f"Verification failed: {exc}")
-
-    if pending_reset_email:
-        st.markdown("## Verify password reset code")
-        st.info(f"A 6-digit password-reset code was sent to **{pending_reset_email}**.")
-        with st.form("rasa_reset_verify_main_form", clear_on_submit=False):
-            reset_otp = st.text_input(
-                "Enter your 6-digit reset code",
-                max_chars=6,
-                key="rasa_reset_otp_main",
-                placeholder="000000",
-            )
-            new_password = st.text_input(
-                "New password (at least 12 characters)", type="password"
-            )
-            confirm_new_password = st.text_input(
-                "Confirm new password", type="password"
-            )
-            finish_reset = st.form_submit_button(
-                "Verify code & reset password", use_container_width=True
-            )
-        if finish_reset:
-            if new_password != confirm_new_password:
-                st.error("The passwords do not match.")
-            else:
-                try:
-                    finish_password_reset(pending_reset_email, reset_otp, new_password)
-                    st.session_state.pop("rasa_reset_email", None)
-                    st.session_state.pop("rasa_reset_otp_main", None)
-                    st.success("Password reset. Sign in with your new password.")
-                    st.rerun()
-                except Exception as exc:
-                    st.error(f"Password reset failed: {exc}")
 
     _render_intro_page()
     st.stop()
@@ -4120,7 +4061,7 @@ with workflow_tabs[7]:
     )
 
     try:
-        from src.db2_store import connection_status, ensure_schema, sync_auditions, fetch_auditions
+        from db2_store import connection_status, ensure_schema, sync_auditions, fetch_auditions
         DB2_MODULE_ERROR = None
     except Exception as exc:
         connection_status = ensure_schema = sync_auditions = fetch_auditions = None
