@@ -3299,7 +3299,7 @@ with workflow_tabs[4]:
                         if gap >= 0.35:
                             pauses.append({"start_seconds": round(float(a * frame_seconds), 2), "duration_seconds": round(float(gap), 2)})
                     features = {
-                        "audio_file": audio_file.name,
+                        "audio_file": selected_audio_name or "audition_video_audio.wav",
                         "duration_seconds": round(duration_s, 2),
                         "analyzed_duration_seconds": round(min(duration_s, max_duration), 2),
                         "median_pitch_hz": round(float(np.median(valid_pitch)), 1) if len(valid_pitch) else None,
@@ -3320,7 +3320,7 @@ with workflow_tabs[4]:
                         "pitch_hz": [float(x) if np.isfinite(x) else None for x in f0],
                         "rms_times": rms_times.tolist(),
                         "rms": rms.tolist(),
-                        "actor_label": audio_actor_label.strip() or Path(audio_file.name).stem,
+                        "actor_label": audio_actor_label.strip() or Path(selected_audio_name or "audition_audio.wav").stem,
                         "selected_character": audio_character or "Unassigned",
                     }
             except ImportError:
