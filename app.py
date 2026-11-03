@@ -2421,35 +2421,6 @@ with workflow_tabs[3]:
         if st.session_state.get("rasa_video_audio_bytes"):
             st.caption("Audio track extracted from this video is available in the Vocal Analysis tab.")
 
-        # Decode the first frame from the same persisted video used by the player.
-        preview_cap = None
-        try:
-            import cv2
-            import numpy as np
-            from PIL import Image
-            preview_cap = cv2.VideoCapture(str(playable_video_path))
-            preview_ok, preview_frame = preview_cap.read()
-            if preview_ok and preview_frame is not None:
-                rgb_frame = cv2.cvtColor(preview_frame, cv2.COLOR_BGR2RGB)
-                # Render the decoded RGB frame directly as an array.
-                # This avoids an unnecessary PIL conversion in the preview path.
-                st.image(
-                    np.asarray(rgb_frame),
-                    channels="RGB",
-                    caption="Video preview · first decoded frame",
-                    use_container_width=True,
-                )
-            else:
-                st.error(
-                    "The saved video could not be decoded into a preview frame. "
-                    "Try a valid H.264 MP4/MOV file or check the video codec."
-                )
-        except Exception as preview_exc:
-            st.error(f"Video preview failed: {type(preview_exc).__name__}: {preview_exc}")
-        finally:
-            if preview_cap is not None:
-                preview_cap.release()
-
         st.caption(f"Selected: {actor_video.name} · {actor_video.size / (1024 * 1024):.1f} MB")
         st.caption(f"Saved in your private vault: {source_video_path.name}")
         st.warning("For comparisons, use similar framing, lighting, camera distance and audition instructions for every actor.")
