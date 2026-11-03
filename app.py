@@ -2411,7 +2411,7 @@ with workflow_tabs[3]:
             # This avoids relying on a local vault path being served correctly
             # by the browser while retaining the persistent file for analysis.
             playable_video_bytes = playable_video_path.read_bytes()
-            st.video(playable_video_bytes, format="video/mp4", alt="Audition video")
+            st.video(playable_video_bytes, format="video/mp4")
         else:
             playable_video_bytes = None
             st.error("The saved audition video is missing or empty. Please upload it again.")
