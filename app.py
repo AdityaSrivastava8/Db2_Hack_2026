@@ -1581,7 +1581,11 @@ def extract_character_specific_cues(story, character_name, all_character_names=N
             continue
 
         # A character cue is a standalone ALL-CAPS line (optionally with a parenthetical).
-        cue_match = re.match(r"^([A-Z][A-Z0-9 ._'’-]{1,35}?)(?:\s*\(([^)]*)\))?$", line)
+        cue_match = re.match(
+            r"^\*{0,2}([A-Z][A-Z0-9 ._'’-]{1,35}?)"
+            r"(?:\s*\(([^)]*)\))?\s*:?\*{0,2}$",
+            line,
+        )
         if cue_match:
             candidate = normalize_name(cue_match.group(1))
             known = next((n for n in all_names if n.casefold() == candidate.casefold()), None)
@@ -1687,7 +1691,10 @@ def parse_screenplay(story, manually_entered_names=""):
     """
     lines = [line.rstrip() for line in story.splitlines()]
     names = []
-    cue_pattern = re.compile(r"^[ \t]{0,12}([A-Z][A-Z0-9 ._'’-]{1,35})(?:\s*\([^)]*\))?[ \t]*$")
+    cue_pattern = re.compile(
+        r"^[ \t]{0,12}\*{0,2}([A-Z][A-Z0-9 ._'’-]{1,35}?)"
+        r"(?:\s*\([^)]*\))?\s*:?\*{0,2}[ \t]*$"
+    )
     excluded = {
         "INT", "EXT", "INT./EXT", "EXT./INT", "CUT TO", "FADE IN", "FADE OUT",
         "CONTINUED", "CONT'D", "THE END", "MONTAGE", "DAY", "NIGHT", "LATER",
@@ -1715,7 +1722,7 @@ def parse_screenplay(story, manually_entered_names=""):
         following = line_index + 1
         while following < len(lines) and not lines[following].strip():
             following += 1
-        while following < len(lines) and re.fullmatch(r"\\s*\\([^)]{1,100}\\)\\s*", lines[following]):
+        while following < len(lines) and re.fullmatch(r"\s*\([^)]{1,100}\)\s*", lines[following]):
             following += 1
         if following >= len(lines):
             continue
@@ -1735,7 +1742,11 @@ def parse_screenplay(story, manually_entered_names=""):
             names.append(name)
 
     names = names[:20]
-    scene_count = sum(1 for line in lines if _SCENE_HEADING_RE.match(line))
+    scene_heading_pattern = re.compile(
+        r"^\\s*(?:SCENE\\s+\\d+\\s*[-–—:]?\\s*)?(?:INT\\.|EXT\\.|INT/EXT\\.|INT\\./EXT\\.)",
+        re.I,
+    )
+    scene_count = sum(1 for line in lines if scene_heading_pattern.match(line))
     character_profiles = []
     for name in names:
         cues, ambiguous = extract_character_specific_cues(story, name, names)
@@ -1769,7 +1780,7 @@ def parse_screenplay(story, manually_entered_names=""):
             "limitations": (
                 "Actions are attributed only when this character is explicitly named in an action sentence, "
                 "or when a delivery direction appears in this character's speaker block. Ambiguous pronouns "
-                "and shared actions are not assigned. Dialogue content is not treated as proof of personality."
+                "and unclear shared actions are not guessed. Clearly named participants in shared blocking or interactions receive separate role-specific cues. Dialogue content is not treated as proof of personality."
             ),
         })
 
@@ -1779,7 +1790,7 @@ def parse_screenplay(story, manually_entered_names=""):
         "screenplay_scene_heading_count": scene_count,
         "notes": [
             "Character dialogue is attributed from standalone screenplay speaker cues.",
-            "Stage directions are attributed only when the character is explicitly named in the action sentence.",
+            "Stage directions are attributed when the character is explicitly named; shared blocking and interactions are split into role-specific cues when the participants and action are clear.",
             "Ambiguous pronouns (for example, 'she', 'he' or 'they') are not guessed or copied between characters.",
             "Potential characteristics are cautious performance prompts supported by visible screenplay evidence, not personality diagnoses.",
             "Dialogue content alone is not used to claim a character is brave, dishonest, loving, aggressive or otherwise psychologically defined.",
@@ -1914,8 +1925,8 @@ with workflow_tabs[1]:
             f"**{story_report['screenplay_scene_heading_count']} scene heading(s)**."
         )
         st.caption(
-            "Each observation below is tied to screenplay evidence. The system deliberately leaves "
-            "ambiguous actions unattributed instead of guessing which character performed them."
+            "Each observation below is tied to screenplay evidence. Shared actions are attributed "
+            "to each clearly identified participant; unclear actions and ambiguous pronouns remain unassigned."
         )
 
         for i, character in enumerate(characters, 1):
