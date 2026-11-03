@@ -2404,20 +2404,6 @@ with workflow_tabs[3]:
                         except OSError:
                             pass
 
-        # Use the persisted file path for playback, matching the working reference app.
-        # Preserve the true MIME type when FFmpeg is unavailable and the original
-        # upload is MOV/AVI; converted browser files are H.264 MP4.
-        st.subheader("Audition video player")
-        if playable_video_path.is_file() and playable_video_path.stat().st_size > 0:
-            playable_video_format = (
-                "video/mp4"
-                if playable_video_path.suffix.lower() == ".mp4"
-                else video_format
-            )
-            st.video(str(playable_video_path), format=playable_video_format)
-        else:
-            st.error("The saved audition video is missing or empty. Please upload it again.")
-
         if st.session_state.get("rasa_video_audio_bytes"):
             st.caption("Audio track extracted from this video is available in the Vocal Analysis tab.")
 
