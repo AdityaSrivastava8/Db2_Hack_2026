@@ -2714,6 +2714,90 @@ with workflow_tabs[3]:
                     "- Use the timestamps and the original audition video for human review. Do not use these measurements as an automated casting decision."
                 )
 
+            st.markdown("### Does the observed expression align with the intended portrayal?")
+            target_label_map = {
+                "Sadness / grief": {"sad"},
+                "Anxiety / fear": {"fear"},
+                "Anger / confrontation": {"angry"},
+                "Joy / excitement": {"happy"},
+                "Restrained / stoic performance": {"neutral"},
+            }
+            target_portrayal = st.session_state.get(
+                "rasa_character_portrayal_intent", "Other / mixed emotional state"
+            )
+            target_labels = target_label_map.get(target_portrayal, set())
+            fer_predictions = video_report.get("facial_expression_predictions") or []
+            review_threshold = float(st.session_state.get("rasa_fer_confidence_threshold", 0.60))
+            usable_predictions = []
+            aligned_predictions = 0
+
+            for item in fer_predictions:
+                predicted_label = str(item.get("label", "")).casefold()
+                score_values = item.get("scores") or {}
+                try:
+                    top_score = max((float(value) for value in score_values.values()), default=None)
+                except (TypeError, ValueError):
+                    top_score = None
+                if predicted_label and top_score is not None and top_score >= review_threshold:
+                    usable_predictions.append(item)
+                    if predicted_label in target_labels:
+                        aligned_predictions += 1
+
+            if not video_report.get("facial_expression_model_enabled"):
+                st.info(
+                    "No match conclusion is available because the optional facial-expression model was not enabled. "
+                    "The movement and facial-geometry measurements cannot identify an emotion on their own."
+                )
+            elif not target_labels:
+                st.info(
+                    "Your selected brief is mixed or scene-specific, so there is no single emotion category to compare. "
+                    "Review the timestamps against the character's emotional changes and dialogue."
+                )
+            elif not usable_predictions:
+                st.warning(
+                    f"The intended portrayal is **{target_portrayal}**, but the model returned no usable "
+                    f"expression labels above the {review_threshold:.0%} review threshold. "
+                    "The result is **inconclusive**, not a mismatch."
+                )
+            else:
+                alignment = aligned_predictions / len(usable_predictions)
+                if alignment >= 0.70:
+                    alignment_text = "The model's labels show frequent category-level alignment"
+                elif alignment >= 0.40:
+                    alignment_text = "The model's labels show partial category-level alignment"
+                else:
+                    alignment_text = "The model's labels show limited category-level alignment"
+
+                st.markdown(
+                    f"**Intended portrayal:** {target_portrayal}  \n"
+                    f"**Observed label alignment:** {aligned_predictions} of {len(usable_predictions)} "
+                    f"usable samples ({alignment:.0%}).  \n"
+                    f"**Plain-language takeaway:** {alignment_text} with the selected category."
+                )
+                st.caption(
+                    "This compares experimental facial-expression labels with the selected category only. "
+                    "It does not establish what the actor felt, whether the emotion was convincingly acted, "
+                    "or whether the performance fulfilled the scene. A different expression may be correct "
+                    "at a particular story beat. Check the timestamps and video yourself."
+                )
+
+            st.markdown("### Why this is useful in a real casting process")
+            st.markdown(
+                "**For a small audition:** If you are reviewing one or two actors, watching the clips carefully "
+                "may be all you need. The value of this tool becomes clearer when the volume grows.\n\n"
+                "**For a large audition:** When dozens or hundreds of actors apply, it becomes difficult to "
+                "remember every clip and compare everyone consistently. RASA AI organizes observations, "
+                "timestamps and review notes so a director can revisit comparable evidence and manage a "
+                "human-led shortlist—for example, narrowing a large pool to 10 or 5 actors for closer review.\n\n"
+                "**For actors:** Auditions can be affected by subjective impressions, inconsistent attention "
+                "or personal bias. A structured record gives each audition additional observable evidence to "
+                "review and helps make the process more consistent and explainable. It supports an actor's "
+                "opportunity to be properly considered; it cannot guarantee a bias-free decision.\n\n"
+                "**Important:** RASA AI does not currently decide who makes the top 10 or top 5, and it does "
+                "not automatically rank talent. It helps organize evidence and reduce manual review effort. "
+                "The director and casting team remain responsible for the shortlist and final decision."
+            )
+
         # Experimental portrayal evidence summary: reports observed model labels only;
         # it does not assign a suitability score or infer the actor's internal state.
         portrayal_label_map = {
