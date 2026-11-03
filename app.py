@@ -2407,8 +2407,13 @@ with workflow_tabs[3]:
         # Use the real, persisted filesystem path for Streamlit playback.
         st.subheader("Audition video player")
         if playable_video_path.is_file() and playable_video_path.stat().st_size > 0:
-            st.video(str(playable_video_path))
+            # Pass the encoded MP4 bytes to Streamlit's media manager directly.
+            # This avoids relying on a local vault path being served correctly
+            # by the browser while retaining the persistent file for analysis.
+            playable_video_bytes = playable_video_path.read_bytes()
+            st.video(playable_video_bytes, format="video/mp4", alt="Audition video")
         else:
+            playable_video_bytes = None
             st.error("The saved audition video is missing or empty. Please upload it again.")
 
         if st.session_state.get("rasa_video_audio_bytes"):
@@ -2424,8 +2429,11 @@ with workflow_tabs[3]:
             preview_ok, preview_frame = preview_cap.read()
             if preview_ok and preview_frame is not None:
                 rgb_frame = cv2.cvtColor(preview_frame, cv2.COLOR_BGR2RGB)
+                # Render the decoded RGB frame directly as an array.
+                # This avoids an unnecessary PIL conversion in the preview path.
                 st.image(
-                    Image.fromarray(np.asarray(rgb_frame)),
+                    np.asarray(rgb_frame),
+                    channels="RGB",
                     caption="Video preview · first decoded frame",
                     use_container_width=True,
                 )
