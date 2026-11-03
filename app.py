@@ -2898,7 +2898,7 @@ with workflow_tabs[3]:
             )
 
             st.markdown("**Plain-language notes for the sampled moments**")
-            for _, sample in sample_observations.iterrows():
+            for sample in sample_observations:
                 timestamp = sample.get("timestamp_seconds", "unknown")
                 try:
                     timestamp_label = f"{float(timestamp):.1f} sec"
