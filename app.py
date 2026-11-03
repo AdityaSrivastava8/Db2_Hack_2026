@@ -2404,16 +2404,18 @@ with workflow_tabs[3]:
                         except OSError:
                             pass
 
-        # Use the real, persisted filesystem path for Streamlit playback.
+        # Use the persisted file path for playback, matching the working reference app.
+        # Preserve the true MIME type when FFmpeg is unavailable and the original
+        # upload is MOV/AVI; converted browser files are H.264 MP4.
         st.subheader("Audition video player")
         if playable_video_path.is_file() and playable_video_path.stat().st_size > 0:
-            # Pass the encoded MP4 bytes to Streamlit's media manager directly.
-            # This avoids relying on a local vault path being served correctly
-            # by the browser while retaining the persistent file for analysis.
-            playable_video_bytes = playable_video_path.read_bytes()
-            st.video(playable_video_bytes, format="video/mp4")
+            playable_video_format = (
+                "video/mp4"
+                if playable_video_path.suffix.lower() == ".mp4"
+                else video_format
+            )
+            st.video(str(playable_video_path), format=playable_video_format)
         else:
-            playable_video_bytes = None
             st.error("The saved audition video is missing or empty. Please upload it again.")
 
         if st.session_state.get("rasa_video_audio_bytes"):
