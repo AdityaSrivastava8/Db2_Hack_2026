@@ -1,6 +1,7 @@
 import io
 import json
 import html
+import hashlib
 import zipfile
 import csv
 import os
@@ -2310,44 +2311,78 @@ with workflow_tabs[3]:
     if actor_video:
         video_bytes = actor_video.getvalue()
         video_suffix = Path(actor_video.name).suffix.lower() or ".mp4"
-        playable_video_bytes = video_bytes
-        video_format = {".mp4": "video/mp4", ".m4v": "video/mp4", ".mov": "video/quicktime", ".avi": "video/x-msvideo"}.get(video_suffix, "video/mp4")
-        ffmpeg = shutil.which("ffmpeg")
-        # Keep a playable fallback even when FFmpeg is unavailable.
-        st.session_state["rasa_video_audio_bytes"] = None
-        if not ffmpeg:
-            st.info("FFmpeg is unavailable. The original video will be offered to the browser; use H.264 MP4 for the widest playback compatibility.")
-        else:
-            source_video_path = None
-            converted_video_path = None
-            try:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=video_suffix) as source_tmp:
-                    source_tmp.write(video_bytes)
-                    source_video_path = source_tmp.name
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as converted_tmp:
-                    converted_video_path = converted_tmp.name
-                result = subprocess.run(
-                    [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", source_video_path,
-                     "-map", "0:v:0", "-map", "0:a?", "-c:v", "libx264", "-preset", "ultrafast",
-                     "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart",
-                     converted_video_path],
-                    capture_output=True, text=True, timeout=180,
-                )
-                if result.returncode != 0 or not os.path.exists(converted_video_path) or os.path.getsize(converted_video_path) <= 0:
-                    detail = (result.stderr or "Unknown FFmpeg conversion error").strip()[-1200:]
-                    st.warning(f"Browser-compatible conversion was unavailable; trying the original video. Details: {detail}")
-                else:
-                    playable_video_bytes = Path(converted_video_path).read_bytes()
-                    video_format = "video/mp4"
+        video_format = {
+            ".mp4": "video/mp4", ".m4v": "video/mp4",
+            ".mov": "video/quicktime", ".avi": "video/x-msvideo",
+        }.get(video_suffix, "application/octet-stream")
 
-                # Extract the audition video's audio so the same take can be reviewed
-                # in the Vocal Analysis tab without requiring a second upload.
+        # Persist the original upload inside this authenticated user's private vault.
+        # A content hash prevents repeated Streamlit reruns from writing duplicate files.
+        media_dir = _USER_DATA_DIR / "media"
+        media_dir.mkdir(parents=True, exist_ok=True)
+        video_digest = hashlib.sha256(video_bytes).hexdigest()
+        safe_video_name = Path(actor_video.name).name.replace("\\x00", "") or "audition_video"
+        source_video_path = media_dir / f"{video_digest[:20]}_{safe_video_name}"
+        if not source_video_path.is_file():
+            source_video_path.write_bytes(video_bytes)
+
+        # Prefer a persistent browser-friendly H.264 MP4 when FFmpeg is available.
+        # Keep the original file as a fallback; neither file is deleted on reruns.
+        playable_video_path = source_video_path
+        # Never let an extracted audio track from a previous upload appear
+        # as the vocal track for a newly selected video.
+        if st.session_state.get("rasa_video_audio_digest") != video_digest:
+            st.session_state["rasa_video_audio_bytes"] = None
+            st.session_state["rasa_video_audio_name"] = None
+            st.session_state["rasa_video_audio_digest"] = None
+
+        ffmpeg = shutil.which("ffmpeg")
+        if not ffmpeg:
+            st.info(
+                "FFmpeg is unavailable. The original saved video will be used. "
+                "H.264 MP4 provides the widest browser playback compatibility."
+            )
+        else:
+            converted_video_path = media_dir / f"{video_digest[:20]}_browser.mp4"
+            if not converted_video_path.is_file() or converted_video_path.stat().st_size == 0:
+                try:
+                    result = subprocess.run(
+                        [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", str(source_video_path),
+                         "-map", "0:v:0", "-map", "0:a?", "-c:v", "libx264", "-preset", "ultrafast",
+                         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart",
+                         str(converted_video_path)],
+                        capture_output=True, text=True, timeout=180,
+                    )
+                    if (result.returncode != 0 or not converted_video_path.is_file()
+                            or converted_video_path.stat().st_size <= 0):
+                        detail = (result.stderr or "Unknown FFmpeg conversion error").strip()[-1200:]
+                        st.warning(
+                            "Browser-compatible conversion was unavailable; using the original saved video. "
+                            f"Details: {detail}"
+                        )
+                        converted_video_path.unlink(missing_ok=True)
+                    else:
+                        playable_video_path = converted_video_path
+                except Exception as convert_exc:
+                    st.warning(
+                        "Video conversion failed; using the original saved video. "
+                        f"{type(convert_exc).__name__}: {convert_exc}"
+                    )
+                    converted_video_path.unlink(missing_ok=True)
+            else:
+                playable_video_path = converted_video_path
+
+            # Extract audio from this same audition take once per uploaded video.
+            # The extracted bytes remain available to the Vocal Analysis tab.
+            if st.session_state.get("rasa_video_audio_digest") != video_digest:
+                st.session_state["rasa_video_audio_bytes"] = None
+                st.session_state["rasa_video_audio_name"] = None
                 extracted_audio_path = None
                 try:
                     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as audio_tmp:
                         extracted_audio_path = audio_tmp.name
                     audio_result = subprocess.run(
-                        [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", source_video_path,
+                        [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", str(source_video_path),
                          "-vn", "-ac", "1", "-ar", "22050", "-c:a", "pcm_s16le", extracted_audio_path],
                         capture_output=True, text=True, timeout=120,
                     )
@@ -2355,62 +2390,58 @@ with workflow_tabs[3]:
                             and os.path.getsize(extracted_audio_path) > 44):
                         st.session_state["rasa_video_audio_bytes"] = Path(extracted_audio_path).read_bytes()
                         st.session_state["rasa_video_audio_name"] = f"{Path(actor_video.name).stem}_audio.wav"
+                        st.session_state["rasa_video_audio_digest"] = video_digest
                     else:
-                        st.session_state["rasa_video_audio_bytes"] = None
+                        detail = (audio_result.stderr or "No audio stream was found.").strip()[-500:]
+                        st.caption(f"No extractable audio track was found in this video. {detail}")
+                        st.session_state["rasa_video_audio_digest"] = video_digest
+                except Exception as audio_exc:
+                    st.warning(f"Could not extract the video's audio: {type(audio_exc).__name__}: {audio_exc}")
                 finally:
                     if extracted_audio_path and os.path.exists(extracted_audio_path):
                         try:
                             os.unlink(extracted_audio_path)
                         except OSError:
                             pass
-            except Exception as convert_exc:
-                st.error(f"Could not prepare browser-compatible video: {type(convert_exc).__name__}: {convert_exc}")
-            finally:
-                for temp_name in (source_video_path, converted_video_path):
-                    if temp_name:
-                        try:
-                            os.unlink(temp_name)
-                        except OSError:
-                            pass
 
-        # Main audition video player. Use converted H.264 MP4 when available;
-        # otherwise pass the original bytes with their actual container MIME type.
+        # Use the real, persisted filesystem path for Streamlit playback.
         st.subheader("Audition video player")
-        st.video(
-            playable_video_bytes if playable_video_bytes != video_bytes else video_bytes,
-            format="video/mp4" if playable_video_bytes != video_bytes else video_format,
-        )
+        if playable_video_path.is_file() and playable_video_path.stat().st_size > 0:
+            st.video(str(playable_video_path))
+        else:
+            st.error("The saved audition video is missing or empty. Please upload it again.")
+
         if st.session_state.get("rasa_video_audio_bytes"):
             st.caption("Audio track extracted from this video is available in the Vocal Analysis tab.")
 
-        preview_path = None
+        # Decode the first frame from the same persisted video used by the player.
         preview_cap = None
         try:
             import cv2
             import numpy as np
             from PIL import Image
-            preview_suffix = ".mp4" if playable_video_bytes != video_bytes else video_suffix
-            with tempfile.NamedTemporaryFile(delete=False, suffix=preview_suffix) as preview_tmp:
-                preview_tmp.write(playable_video_bytes)
-                preview_path = preview_tmp.name
-            preview_cap = cv2.VideoCapture(preview_path)
+            preview_cap = cv2.VideoCapture(str(playable_video_path))
             preview_ok, preview_frame = preview_cap.read()
             if preview_ok and preview_frame is not None:
                 rgb_frame = cv2.cvtColor(preview_frame, cv2.COLOR_BGR2RGB)
-                st.image(Image.fromarray(np.asarray(rgb_frame)), caption="Video preview · first decoded frame", use_container_width=True)
+                st.image(
+                    Image.fromarray(np.asarray(rgb_frame)),
+                    caption="Video preview · first decoded frame",
+                    use_container_width=True,
+                )
             else:
-                st.error("The uploaded video could not be decoded into a preview frame. Confirm FFmpeg is installed and try a valid MP4/MOV file.")
+                st.error(
+                    "The saved video could not be decoded into a preview frame. "
+                    "Try a valid H.264 MP4/MOV file or check the video codec."
+                )
         except Exception as preview_exc:
             st.error(f"Video preview failed: {type(preview_exc).__name__}: {preview_exc}")
         finally:
             if preview_cap is not None:
                 preview_cap.release()
-            if preview_path and os.path.exists(preview_path):
-                try:
-                    os.unlink(preview_path)
-                except OSError:
-                    pass
+
         st.caption(f"Selected: {actor_video.name} · {actor_video.size / (1024 * 1024):.1f} MB")
+        st.caption(f"Saved in your private vault: {source_video_path.name}")
         st.warning("For comparisons, use similar framing, lighting, camera distance and audition instructions for every actor.")
         enable_fer = st.checkbox(
             "Also run experimental facial-expression model (requires the optional 'fer' package)",
@@ -2418,7 +2449,6 @@ with workflow_tabs[3]:
             help="Runs a pretrained expression classifier on sampled frames. Outputs can be wrong, especially during speech, with poor lighting, or with occlusion. Use only as review evidence.",
         )
         if st.button("Analyze video locally", type="primary"):
-            temp_path = None
             cap = None
             try:
                 import cv2
@@ -2438,11 +2468,8 @@ with workflow_tabs[3]:
                             "and facial-geometry analysis only. Check the pinned FER/TensorFlow "
                             "dependencies in requirements.txt and redeploy."
                         )
-                suffix = Path(actor_video.name).suffix or ".mp4"
-                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-                    tmp.write(playable_video_bytes)
-                    temp_path = tmp.name
-                cap = cv2.VideoCapture(temp_path)
+                # Analyze the exact persistent file used by the player and preview.
+                cap = cv2.VideoCapture(str(playable_video_path))
                 fps = cap.get(cv2.CAP_PROP_FPS) or 0
                 total_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0
                 duration = total_frames / fps if fps > 0 else 0
@@ -2596,11 +2623,6 @@ with workflow_tabs[3]:
             finally:
                 if cap is not None:
                     cap.release()
-                if temp_path and os.path.exists(temp_path):
-                    try:
-                        os.unlink(temp_path)
-                    except OSError:
-                        pass
 
     video_report = st.session_state.get("rasa_video_report")
     if video_report:
