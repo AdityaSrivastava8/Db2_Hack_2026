@@ -2793,9 +2793,12 @@ with workflow_tabs[3]:
                 "or personal bias. A structured record gives each audition additional observable evidence to "
                 "review and helps make the process more consistent and explainable. It supports an actor's "
                 "opportunity to be properly considered; it cannot guarantee a bias-free decision.\n\n"
-                "**Important:** RASA AI does not currently decide who makes the top 10 or top 5, and it does "
-                "not automatically rank talent. It helps organize evidence and reduce manual review effort. "
-                "The director and casting team remain responsible for the shortlist and final decision."
+                "**Important:** The current version helps organize audition evidence and reduce manual review "
+                "effort; it does not yet automatically select or rank the top 10 or top 5 actors. This is a planned "
+                "future capability: as RASA AI develops, it can be extended to compare auditions against role-specific "
+                "requirements and help directors create a data-supported shortlist from a large pool. Any such "
+                "shortlist should remain explainable and subject to human review, with the director and casting team "
+                "making the final decision."
             )
 
         # Experimental portrayal evidence summary: reports observed model labels only;
