@@ -3274,10 +3274,121 @@ with workflow_tabs[4]:
         c4.metric("Energy gaps ≥ 0.35 s", str(vf["detected_energy_gaps_over_0_35s"]))
         pitch_df = pd.DataFrame({"Time (s)": vocal_result["pitch_times"], "Pitch (Hz)": vocal_result["pitch_hz"]}).set_index("Time (s)")
         st.markdown("**Pitch contour**")
+        st.caption(
+            "Director's guide: Read this from left to right as the clip plays. The horizontal line is time; "
+            "the vertical value is the detected pitch of the voice. A rising line means the voice became higher; "
+            "a falling line means it became lower. Changes can help you locate shifts in vocal delivery, but "
+            "they do not tell you which emotion the actor was expressing. Gaps mean pitch could not be detected. "
+            "Sudden isolated spikes can be tracking errors, background sounds or pitch-detection mistakes—"
+            "replay those moments before drawing conclusions."
+        )
         st.line_chart(pitch_df, height=220)
         rms_df = pd.DataFrame({"Time (s)": vocal_result["rms_times"], "RMS energy": vocal_result["rms"]}).set_index("Time (s)")
         st.markdown("**Relative loudness / energy**")
+        st.caption(
+            "Director's guide: This line shows how strong the recorded sound is over time. Higher sections are "
+            "louder in the recording; lower sections are quieter. Use it to find changes in vocal intensity or "
+            "possible pauses. It is not a calibrated loudness score: music, background noise, microphone distance "
+            "and recording volume can also raise or lower the line."
+        )
         st.line_chart(rms_df, height=180)
+
+        with st.container(border=True):
+            st.subheader("What this vocal analysis means — director's view")
+            st.caption(
+                "A plain-language guide to the voice measurements in this clip. "
+                "Use these observations to decide what to listen to again, not to score or rank the actor."
+            )
+
+            median_pitch = vf.get("median_pitch_hz")
+            low_pitch = vf.get("pitch_10th_percentile_hz")
+            high_pitch = vf.get("pitch_90th_percentile_hz")
+            pitch_variability = vf.get("pitch_standard_deviation_hz")
+            mean_energy = vf.get("mean_rms_energy")
+            energy_variability = vf.get("energy_variation_std")
+            voiced_fraction = vf.get("voiced_frame_fraction")
+            low_energy_seconds = vf.get("estimated_low_energy_seconds")
+            gap_count = vf.get("detected_energy_gaps_over_0_35s")
+            clip_duration = vf.get("duration_seconds")
+
+            if median_pitch is not None:
+                st.markdown(
+                    f"- **Voice pitch:** The typical detected pitch in this clip was about "
+                    f"**{median_pitch} Hz**. The measured middle range was **{low_pitch}–{high_pitch} Hz**. "
+                    "This describes how high or low the voice sounded acoustically; it is not a judgement "
+                    "about whether the voice is attractive, suitable, masculine, feminine, or emotionally correct."
+                )
+            else:
+                st.markdown(
+                    "- **Voice pitch:** The system could not reliably detect pitch in this recording. "
+                    "This can happen with noise, music, overlapping voices, or very quiet audio."
+                )
+
+            if pitch_variability is not None:
+                st.markdown(
+                    f"- **Pitch variation:** The measured variation was **{pitch_variability} Hz**. "
+                    "This shows how much the detected pitch moved around during the clip. "
+                    "A steadier pitch may sound more even; greater variation may make delivery sound more varied. "
+                    "Neither is automatically better—the scene and character direction matter."
+                )
+
+            if energy_variability is not None:
+                st.markdown(
+                    f"- **Loudness changes:** The recording's energy variation was **{energy_variability}**. "
+                    "The chart shows where the voice or overall audio became louder or softer. "
+                    "This can help locate changes in vocal intensity, but background music, microphone distance "
+                    "and recording volume also affect it."
+                )
+
+            if voiced_fraction is not None:
+                st.markdown(
+                    f"- **Detectable voiced sound:** About **{voiced_fraction * 100:.0f}%** of the analysed "
+                    "frames contained a pitch the system could detect. This is not the percentage of words "
+                    "spoken or a speech-clarity score."
+                )
+
+            if low_energy_seconds is not None and gap_count is not None:
+                st.markdown(
+                    f"- **Quieter moments:** The system found about **{low_energy_seconds} seconds** of "
+                    f"low-energy audio and **{gap_count} energy gaps longer than 0.35 seconds**. "
+                    "These may point to pauses or quieter moments worth replaying, but they are not confirmed "
+                    "speech pauses—silence, soft speech, music and room noise can affect the estimate."
+                )
+
+            st.markdown("### Does the voice match the intended emotion?")
+            intended_vocal_portrayal = st.session_state.get(
+                "rasa_character_portrayal_intent", "Not specified"
+            )
+            st.info(
+                f"The selected intended portrayal is **{intended_vocal_portrayal}**. "
+                "This version measures pitch, loudness and low-energy gaps; it does not recognise emotion "
+                "from speech or understand the dialogue. Therefore it cannot reliably say whether the actor's "
+                "voice matched the intended emotion. The vocal result is **not an emotion-match verdict**. "
+                "Listen to the relevant lines in context and compare them with the character brief."
+            )
+
+            with st.expander("What this vocal analysis cannot tell you"):
+                st.markdown(
+                    "- It cannot identify the actor's real feelings or prove that an emotion was convincingly portrayed.\n"
+                    "- It does not transcribe dialogue, measure pronunciation, understand language or determine what the words mean.\n"
+                    "- It does not currently provide a validated speaking-speed, vocal-clarity, accent, or acting-quality score.\n"
+                    "- Pitch and loudness are affected by the actor's natural voice, language, dialogue, microphone, music, room and recording conditions.\n"
+                    "- A pause or a quiet moment is not automatically a mistake; it may be an intentional part of the performance."
+                )
+
+            st.markdown("### Why this is useful in a real casting process")
+            st.markdown(
+                "**For directors:** When reviewing many auditions, the pitch and energy timelines and the detected "
+                "quieter moments help you return to specific parts of a recording instead of relying only on memory. "
+                "They add structured listening notes alongside your own judgement.\n\n"
+                "**For actors:** A saved, structured record can make vocal review more consistent and give the actor "
+                "specific moments to discuss or revisit, rather than relying entirely on a general impression. "
+                "It can support fairer consideration, but it cannot guarantee that human bias is removed.\n\n"
+                "**For large audition rounds:** With dozens or hundreds of submissions, RASA AI can help organise "
+                "and compare review evidence so the casting team can manage a human-led shortlist. The current vocal "
+                "analysis does not rank actors or select a top 10 or top 5."
+            )
+
         st.dataframe(pd.DataFrame([vf]), use_container_width=True, hide_index=True)
         st.download_button("Download vocal analysis (JSON)", json.dumps(vf, indent=2, ensure_ascii=False), "rasaai_vocal_analysis.json", "application/json", key="rasa_vocal_json")
         if st.button("Save vocal analysis to audition library / Haystack", type="primary", key="rasa_save_vocal_analysis"):
@@ -3324,6 +3435,13 @@ with workflow_tabs[4]:
         # acoustic measurements alongside the actual recording. This is not speech
         # transcription or emotion recognition.
         st.subheader("Timestamped vocal evidence")
+        st.caption(
+            "Director's guide: Each row is a moment in the recording. The timestamp tells you where to replay; "
+            "pitch_hz is the estimated voice pitch at that moment; rms_energy is the relative strength of the "
+            "recorded sound. 'None' in the pitch column means the system could not find a reliable pitched voice "
+            "at that instant—it does not automatically mean the actor was silent. Use the rows to locate moments "
+            "for listening, not as a line-by-line performance score."
+        )
         try:
             evidence_df = pd.DataFrame({
                 "time_seconds": vocal_result["pitch_times"],
@@ -3362,9 +3480,19 @@ with workflow_tabs[4]:
 
         st.subheader("Dialogue delivery by time segment")
         st.caption(
-            "Summarizes acoustic changes in fixed time windows. These are delivery descriptors, "
-            "not labels for sadness, happiness, anger, or acting quality."
+            "Director's guide: This divides the recording into short time windows (for example, 0–5 seconds, "
+            "5–10 seconds) so you can compare how the voice changes across the audition. It describes sound "
+            "patterns only; it does not identify emotions or judge acting quality."
         )
+        with st.expander("How to read the columns"):
+            st.markdown(
+                "- **Start / end seconds:** The part of the recording covered by that row.\n"
+                "- **Median pitch:** The typical detected pitch in that section. A higher number means a higher-sounding voice in that section.\n"
+                "- **Pitch variability:** How much the detected pitch moved around within that section. Higher variation means more pitch movement, not necessarily better delivery.\n"
+                "- **Mean energy:** The average strength of the recorded sound in that section. Higher values mean louder recorded audio, not necessarily stronger acting.\n"
+                "- **Energy variability:** How much the recorded loudness changed within that section.\n"
+                "- **Pitch / energy frames:** How many small audio samples contributed to each measurement. These are technical sample counts, not words or lines."
+            )
         segment_seconds = st.select_slider(
             "Segment length (seconds)",
             options=[3, 5, 10, 15],
@@ -3417,6 +3545,58 @@ with workflow_tabs[4]:
             if segment_rows:
                 segment_df = pd.DataFrame(segment_rows)
                 st.dataframe(segment_df, use_container_width=True, hide_index=True)
+
+                st.markdown("**What each time segment tells the director**")
+                clip_pitch_reference = float(pitch_frame["pitch_hz"].dropna().median()) if not pitch_frame["pitch_hz"].dropna().empty else None
+                clip_energy_reference = float(energy_frame["rms_energy"].median()) if not energy_frame.empty else None
+                for row in segment_rows:
+                    start_label = int(row["start_seconds"]) if float(row["start_seconds"]).is_integer() else row["start_seconds"]
+                    end_label = int(row["end_seconds"]) if float(row["end_seconds"]).is_integer() else row["end_seconds"]
+                    observations = []
+                    row_pitch = row.get("median_pitch_hz")
+                    row_energy = row.get("mean_rms_energy")
+                    row_pitch_var = row.get("pitch_variability_std_hz")
+                    row_energy_var = row.get("energy_variability_std")
+
+                    if row_pitch is None:
+                        observations.append("no reliable pitch was detected")
+                    elif clip_pitch_reference is not None:
+                        pitch_ratio = row_pitch / max(clip_pitch_reference, 1e-6)
+                        if pitch_ratio >= 1.12:
+                            observations.append("the voice sat higher than this clip's typical pitch")
+                        elif pitch_ratio <= 0.88:
+                            observations.append("the voice sat lower than this clip's typical pitch")
+                        else:
+                            observations.append("the voice pitch was close to this clip's typical level")
+
+                    if row_energy is not None and clip_energy_reference is not None:
+                        energy_ratio = row_energy / max(clip_energy_reference, 1e-9)
+                        if energy_ratio >= 1.20:
+                            observations.append("the recording was louder than the clip's typical level")
+                        elif energy_ratio <= 0.80:
+                            observations.append("the recording was quieter than the clip's typical level")
+                        else:
+                            observations.append("the recording level was near the clip's typical level")
+
+                    if row_pitch_var is not None:
+                        observations.append(
+                            "pitch moved around more in this section" if row_pitch_var > (vf.get("pitch_standard_deviation_hz") or 0)
+                            else "pitch was relatively steadier in this section"
+                        )
+                    if row_energy_var is not None:
+                        observations.append(
+                            "recorded loudness changed noticeably within this section"
+                            if row_energy_var > (vf.get("energy_variation_std") or 0)
+                            else "recorded loudness was relatively even within this section"
+                        )
+
+                    if observations:
+                        st.markdown(f"- **{start_label}–{end_label} sec:** " + "; ".join(observations) + ".")
+                st.caption(
+                    "These comparisons are relative to this recording, not to other actors or a universal ideal. "
+                    "A higher, lower, louder or steadier section is not automatically good or bad. Listen to the "
+                    "actual dialogue and scene context before interpreting it."
+                )
                 st.download_button(
                     "Download segment delivery summary (CSV)",
                     segment_df.to_csv(index=False).encode("utf-8"),
