@@ -11,7 +11,7 @@ import tempfile
 import subprocess
 from datetime import datetime
 
-from rasa_auth import (
+from src.rasa_auth import (
     begin_registration, verify_registration, authenticate,
     begin_password_reset, finish_password_reset,
 )
@@ -21,7 +21,7 @@ import streamlit as st
 from pypdf import PdfReader
 
 try:
-    from smart_audition_search import search_auditions as haystack_search_auditions
+    from src.smart_audition_search import search_auditions as haystack_search_auditions
     HAYSTACK_SEARCH_IMPORT_ERROR = None
 except Exception as exc:
     haystack_search_auditions = None
@@ -291,12 +291,7 @@ def _render_intro_page():
         database, username, password and TLS instructions supplied by your Db2 provider.
         Do not commit credentials or share passwords.
       </p>
-      <pre>$env:DB2_HOST = "your-db2-host"
-$env:DB2_PORT = "50000"
-$env:DB2_DATABASE = "your-database"
-$env:DB2_USER = "your-username"
-$env:DB2_PASSWORD = "your-password"
-$env:DB2_SSL = "true"</pre>
+      <pre><code>$env:DB2_HOST = "your-db2-host"<br>$env:DB2_PORT = "50000"<br>$env:DB2_DATABASE = "your-database"<br>$env:DB2_USER = "your-username"<br>$env:DB2_PASSWORD = "your-password"<br>$env:DB2_SSL = "true"</code></pre>
       <ol>
         <li>Start RASA AI with <code>streamlit run app.py</code>.</li>
         <li>Open <b>Db2 Database</b> and check the connection.</li>
@@ -4061,7 +4056,7 @@ with workflow_tabs[7]:
     )
 
     try:
-        from db2_store import connection_status, ensure_schema, sync_auditions, fetch_auditions
+        from src.db2_store import connection_status, ensure_schema, sync_auditions, fetch_auditions
         DB2_MODULE_ERROR = None
     except Exception as exc:
         connection_status = ensure_schema = sync_auditions = fetch_auditions = None
