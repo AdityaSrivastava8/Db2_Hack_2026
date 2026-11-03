@@ -1589,7 +1589,35 @@ def extract_character_specific_cues(story, character_name, all_character_names=N
             current_speaker = None
             continue
 
-        # A character cue is a standalone ALL-CAPS line (optionally with a parenthetical).
+        # Inline dialogue format: **MAYA:** spoken dialogue on the same line.
+        inline_cue = re.match(
+            r"^\*{0,2}([A-Z][A-Z0-9 ._'’-]{1,35}?)"
+            r"(?:\s*\(([^)]*)\))?\s*:\*{0,2}\s+(.+)$",
+            line,
+        )
+        if inline_cue:
+            candidate = normalize_name(inline_cue.group(1))
+            known = next((n for n in all_names if n.casefold() == candidate.casefold()), None)
+            if known:
+                flush_action_block(pending_action)
+                pending_action = []
+                current_speaker = known
+                in_dialogue = True
+                spoken_text = inline_cue.group(3).strip()
+                if known.casefold() == character_name.casefold():
+                    dialogue_blocks += 1
+                    dialogue_words += len(re.findall(r"[A-Za-z0-9]+", spoken_text))
+                    parenthetical = (inline_cue.group(2) or "").strip()
+                    if parenthetical:
+                        for label, hits in _cue_hits(parenthetical):
+                            evidence_by_label.setdefault(label, []).append({
+                                "excerpt": parenthetical[:320],
+                                "matched_words": hits[:4],
+                                "source": "Speaker parenthetical",
+                            })
+                continue
+
+        # A character cue may also be a standalone ALL-CAPS line.
         cue_match = re.match(
             r"^\*{0,2}([A-Z][A-Z0-9 ._'’-]{1,35}?)"
             r"(?:\s*\(([^)]*)\))?\s*:?\*{0,2}$",
@@ -1658,6 +1686,52 @@ def extract_character_specific_cues(story, character_name, all_character_names=N
             "audition_test": AUDITION_TESTS[label],
             "director_watchpoint": watchpoint,
             "status": "screenplay-supported interpretation — director review required",
+        })
+
+    # A shared conversation cue is based only on screenplay speaker turns,
+    # never on the meaning or sentiment of dialogue text.
+    scene_speakers = set()
+    for raw_line in lines[first_scene_index:]:
+        line_text = raw_line.strip()
+        inline_speaker = re.match(
+            r"^\*{0,2}([A-Z][A-Z0-9 ._'’-]{1,35}?)"
+            r"(?:\s*\([^)]*\))?\s*:\*{0,2}\s+\S",
+            line_text,
+        )
+        standalone_speaker = re.match(
+            r"^\*{0,2}([A-Z][A-Z0-9 ._'’-]{1,35}?)"
+            r"(?:\s*\([^)]*\))?\s*:?\*{0,2}$",
+            line_text,
+        )
+        speaker_match = inline_speaker or standalone_speaker
+        if speaker_match:
+            candidate = normalize_name(speaker_match.group(1))
+            known = next((n for n in all_names if n.casefold() == candidate.casefold()), None)
+            if known:
+                scene_speakers.add(known)
+
+    partners = [n for n in all_names if n.casefold() != character_name.casefold()
+                and any(s.casefold() == n.casefold() for s in scene_speakers)]
+    if (character_name.casefold() in {s.casefold() for s in scene_speakers}
+            and partners and dialogue_blocks >= 1):
+        partner_names = ", ".join(partners)
+        evidence = (
+            f"{character_name} has dialogue speaker turns in the same screenplay "
+            f"as {partner_names}; review listening, response timing and turn-taking."
+        )
+        cues.append({
+            "requirement": "dialogue exchange / scene partner interaction",
+            "characteristic": "Dialogue exchange / scene partner interaction",
+            "evidence_items": [{
+                "excerpt": evidence,
+                "matched_words": [],
+                "source": "Screenplay speaker-cue sequence; dialogue meaning not evaluated",
+            }],
+            "evidence_in_context": evidence,
+            "context_excerpt": "",
+            "audition_test": "Rehearse the exchange with a scene partner. Review listening, pauses, interruption timing and response handoffs without judging the dialogue's emotional meaning.",
+            "director_watchpoint": "Does the performer listen and respond at the appropriate conversational beat while maintaining clear turn-taking?",
+            "status": "structural screenplay observation — director review required",
         })
 
     # Dialogue volume is a structural fact, not a personality inference.
@@ -1734,8 +1808,17 @@ def parse_screenplay(story, manually_entered_names=""):
             continue
         match = cue_pattern.match(line)
         if not match:
-            continue
-        raw = normalize_name(match.group(1))
+            # Also accept inline dialogue labels such as **MAYA:** followed by dialogue.
+            inline_match = re.match(
+                r"^\s*\*{0,2}([A-Z][A-Z0-9 ._'’-]{1,35}?)"
+                r"(?:\s*\([^)]*\))?\s*:\*{0,2}\s+\S",
+                line,
+            )
+            if not inline_match:
+                continue
+            raw = normalize_name(inline_match.group(1))
+        else:
+            raw = normalize_name(match.group(1))
         upper = raw.upper()
         if upper in excluded or upper in {"SCREENPLAY", "SCRIPT", "THE END", "END", "TITLE"}:
             continue
