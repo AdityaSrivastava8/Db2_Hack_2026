@@ -2877,7 +2877,76 @@ with workflow_tabs[3]:
             st.info("Enable the optional facial-expression model during video analysis to show experimental timestamped expression labels for human review.")
         st.json({k: v for k, v in video_report.items() if k != "sample_observations"})
         st.markdown("**Sample observations**")
-        st.dataframe(video_report["sample_observations"], use_container_width=True)
+        sample_observations = video_report["sample_observations"]
+        st.dataframe(sample_observations, use_container_width=True)
+
+        with st.expander("What each video sample tells the director", expanded=False):
+            st.caption(
+                "Each row represents one sampled moment in the clip. These notes translate visible measurements "
+                "into plain language so you can decide which moments to replay. They describe what the camera "
+                "could measure—not the actor's feelings, intention, talent, or role suitability."
+            )
+            st.markdown(
+                "**How to read the columns**\n"
+                "- **Timestamp:** Approximate moment in the clip to replay.\n"
+                "- **Pose detected:** Whether the body-pose model could identify the actor's body landmarks in that frame.\n"
+                "- **Movement since previous sample:** How much the tracked body landmarks changed since the previous sampled moment. A larger value means more visible landmark movement, not better or worse acting.\n"
+                "- **Wrist above shoulder:** Whether at least one detected wrist was higher than shoulder level in that frame.\n"
+                "- **Shoulder tilt / torso offset:** Measurements of visible shoulder alignment and the torso's position in the frame. They do not measure confidence, mood, or posture quality.\n"
+                "- **Face detected:** Whether the face could be located in that frame.\n"
+                "- **Mouth opening / eye openness / brow-eye spacing:** Measurements of visible facial geometry. They are not emotion labels."
+            )
+
+            st.markdown("**Plain-language notes for the sampled moments**")
+            for _, sample in sample_observations.iterrows():
+                timestamp = sample.get("timestamp_seconds", "unknown")
+                try:
+                    timestamp_label = f"{float(timestamp):.1f} sec"
+                except (TypeError, ValueError):
+                    timestamp_label = str(timestamp)
+
+                observations = []
+                pose_value = sample.get("pose_detected")
+                face_value = sample.get("face_detected")
+                if pose_value is not None:
+                    observations.append(
+                        "body pose was detected" if bool(pose_value) else "body pose was not reliably detected"
+                    )
+                if face_value is not None:
+                    observations.append(
+                        "face was detected" if bool(face_value) else "face was not reliably detected"
+                    )
+
+                movement = sample.get("movement_since_previous_sample_index")
+                try:
+                    if movement is not None and pd.notna(movement):
+                        movement = float(movement)
+                        if movement < 0.005:
+                            observations.append("tracked body landmarks changed very little since the previous sample")
+                        elif movement < 0.015:
+                            observations.append("tracked body landmarks showed some change since the previous sample")
+                        else:
+                            observations.append("tracked body landmarks changed more noticeably since the previous sample")
+                except (TypeError, ValueError):
+                    pass
+
+                wrist_value = sample.get("wrist_above_shoulder")
+                if wrist_value is not None and pd.notna(wrist_value):
+                    observations.append(
+                        "at least one wrist was above shoulder level" if bool(wrist_value)
+                        else "no wrist was detected above shoulder level"
+                    )
+
+                if observations:
+                    st.markdown(f"- **{timestamp_label}:** " + "; ".join(observations) + ".")
+
+            st.caption(
+                "These are frame-by-frame observations, not conclusions about the performance. A hand raised "
+                "may be part of a gesture, movement may be required by the scene, and a face or body not detected "
+                "may simply be outside the frame or obscured. Replay the original clip and interpret each moment "
+                "using the dialogue, blocking and director's brief."
+            )
+
         st.download_button("Download movement report (JSON)", json.dumps(video_report, indent=2, ensure_ascii=False), "rasaai_actor_movement_report.json", "application/json")
 
         st.subheader("Multi-audition comparison")
@@ -3546,57 +3615,58 @@ with workflow_tabs[4]:
                 segment_df = pd.DataFrame(segment_rows)
                 st.dataframe(segment_df, use_container_width=True, hide_index=True)
 
-                st.markdown("**What each time segment tells the director**")
-                clip_pitch_reference = float(pitch_frame["pitch_hz"].dropna().median()) if not pitch_frame["pitch_hz"].dropna().empty else None
-                clip_energy_reference = float(energy_frame["rms_energy"].median()) if not energy_frame.empty else None
-                for row in segment_rows:
-                    start_label = int(row["start_seconds"]) if float(row["start_seconds"]).is_integer() else row["start_seconds"]
-                    end_label = int(row["end_seconds"]) if float(row["end_seconds"]).is_integer() else row["end_seconds"]
-                    observations = []
-                    row_pitch = row.get("median_pitch_hz")
-                    row_energy = row.get("mean_rms_energy")
-                    row_pitch_var = row.get("pitch_variability_std_hz")
-                    row_energy_var = row.get("energy_variability_std")
+                with st.expander("What each time segment tells the director", expanded=False):
+                    st.markdown("**What each time segment tells the director**")
+                    clip_pitch_reference = float(pitch_frame["pitch_hz"].dropna().median()) if not pitch_frame["pitch_hz"].dropna().empty else None
+                    clip_energy_reference = float(energy_frame["rms_energy"].median()) if not energy_frame.empty else None
+                    for row in segment_rows:
+                        start_label = int(row["start_seconds"]) if float(row["start_seconds"]).is_integer() else row["start_seconds"]
+                        end_label = int(row["end_seconds"]) if float(row["end_seconds"]).is_integer() else row["end_seconds"]
+                        observations = []
+                        row_pitch = row.get("median_pitch_hz")
+                        row_energy = row.get("mean_rms_energy")
+                        row_pitch_var = row.get("pitch_variability_std_hz")
+                        row_energy_var = row.get("energy_variability_std")
 
-                    if row_pitch is None:
-                        observations.append("no reliable pitch was detected")
-                    elif clip_pitch_reference is not None:
-                        pitch_ratio = row_pitch / max(clip_pitch_reference, 1e-6)
-                        if pitch_ratio >= 1.12:
-                            observations.append("the voice sat higher than this clip's typical pitch")
-                        elif pitch_ratio <= 0.88:
-                            observations.append("the voice sat lower than this clip's typical pitch")
-                        else:
-                            observations.append("the voice pitch was close to this clip's typical level")
+                        if row_pitch is None:
+                            observations.append("no reliable pitch was detected")
+                        elif clip_pitch_reference is not None:
+                            pitch_ratio = row_pitch / max(clip_pitch_reference, 1e-6)
+                            if pitch_ratio >= 1.12:
+                                observations.append("the voice sat higher than this clip's typical pitch")
+                            elif pitch_ratio <= 0.88:
+                                observations.append("the voice sat lower than this clip's typical pitch")
+                            else:
+                                observations.append("the voice pitch was close to this clip's typical level")
 
-                    if row_energy is not None and clip_energy_reference is not None:
-                        energy_ratio = row_energy / max(clip_energy_reference, 1e-9)
-                        if energy_ratio >= 1.20:
-                            observations.append("the recording was louder than the clip's typical level")
-                        elif energy_ratio <= 0.80:
-                            observations.append("the recording was quieter than the clip's typical level")
-                        else:
-                            observations.append("the recording level was near the clip's typical level")
+                        if row_energy is not None and clip_energy_reference is not None:
+                            energy_ratio = row_energy / max(clip_energy_reference, 1e-9)
+                            if energy_ratio >= 1.20:
+                                observations.append("the recording was louder than the clip's typical level")
+                            elif energy_ratio <= 0.80:
+                                observations.append("the recording was quieter than the clip's typical level")
+                            else:
+                                observations.append("the recording level was near the clip's typical level")
 
-                    if row_pitch_var is not None:
-                        observations.append(
-                            "pitch moved around more in this section" if row_pitch_var > (vf.get("pitch_standard_deviation_hz") or 0)
-                            else "pitch was relatively steadier in this section"
-                        )
-                    if row_energy_var is not None:
-                        observations.append(
-                            "recorded loudness changed noticeably within this section"
-                            if row_energy_var > (vf.get("energy_variation_std") or 0)
-                            else "recorded loudness was relatively even within this section"
-                        )
+                        if row_pitch_var is not None:
+                            observations.append(
+                                "pitch moved around more in this section" if row_pitch_var > (vf.get("pitch_standard_deviation_hz") or 0)
+                                else "pitch was relatively steadier in this section"
+                            )
+                        if row_energy_var is not None:
+                            observations.append(
+                                "recorded loudness changed noticeably within this section"
+                                if row_energy_var > (vf.get("energy_variation_std") or 0)
+                                else "recorded loudness was relatively even within this section"
+                            )
 
-                    if observations:
-                        st.markdown(f"- **{start_label}–{end_label} sec:** " + "; ".join(observations) + ".")
-                st.caption(
-                    "These comparisons are relative to this recording, not to other actors or a universal ideal. "
-                    "A higher, lower, louder or steadier section is not automatically good or bad. Listen to the "
-                    "actual dialogue and scene context before interpreting it."
-                )
+                        if observations:
+                            st.markdown(f"- **{start_label}–{end_label} sec:** " + "; ".join(observations) + ".")
+                    st.caption(
+                        "These comparisons are relative to this recording, not to other actors or a universal ideal. "
+                        "A higher, lower, louder or steadier section is not automatically good or bad. Listen to the "
+                        "actual dialogue and scene context before interpreting it."
+                    )
                 st.download_button(
                     "Download segment delivery summary (CSV)",
                     segment_df.to_csv(index=False).encode("utf-8"),
