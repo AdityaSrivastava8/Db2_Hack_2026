@@ -1428,7 +1428,10 @@ _ACTION_VERBS = {
     "high movement", "hand gestures", "stillness / controlled posture",
     "physical tension", "visible expression changes (review manually)",
 }
-_SCENE_HEADING_RE = re.compile(r"^\s*(?:INT\.|EXT\.|INT/EXT\.|INT\./EXT\.)", re.I)
+_SCENE_HEADING_RE = re.compile(
+    r"^\s*(?:SCENE\s+\d+\s*[-–—:]?\s*)?(?:INT\.|EXT\.|INT/EXT\.|INT\./EXT\.)",
+    re.I,
+)
 _TRANSITION_RE = re.compile(r"^\s*(?:CUT TO:|FADE IN:|FADE OUT\.?|DISSOLVE TO:|SMASH CUT TO:|THE END)\s*$", re.I)
 
 
@@ -1469,6 +1472,10 @@ def extract_character_specific_cues(story, character_name, all_character_names=N
     ambiguous_actions = []
 
     lines = story.splitlines()
+    first_scene_index = next(
+        (i for i, candidate in enumerate(lines) if _SCENE_HEADING_RE.match(candidate.strip())),
+        0,
+    )
     current_speaker = None
     in_dialogue = False
     pending_action = []
@@ -1498,10 +1505,10 @@ def extract_character_specific_cues(story, character_name, all_character_names=N
             # Shared blocking: both explicitly named characters participate in
             # the spatial arrangement, so each receives the same blocking cue.
             blocking_pattern = re.compile(
-                r"\\b(?:sits?|sitting|sat|stands?|standing|stood|kneels?|kneeling|"
+                r"\b(?:sits?|sitting|sat|stands?|standing|stood|kneels?|kneeling|"
                 r"faces?|facing|stands? opposite|sits? opposite|next to|beside|"
                 r"across from|in front of|behind|side by side|approaches?|"
-                r"approach|meets?|meet)\\b",
+                r"approach|meets?|meet)\b",
                 re.I,
             )
             if blocking_pattern.search(sentence):
@@ -1514,10 +1521,10 @@ def extract_character_specific_cues(story, character_name, all_character_names=N
             # Directional gaze: attribute the action to the named subject, while
             # recording the named recipient as the interaction/reaction partner.
             gaze_match = re.search(
-                r"\\b(" + "|".join(re.escape(n) for n in mentioned) +
-                r")\\b\\s+(?:slowly\\s+| briefly\\s+)?"
-                r"(looks?|glances?|stares?|gazes?)\\s+"
-                r"(?:directly\\s+|briefly\\s+)?(?:at|toward|to)\\s+"
+                r"\b(" + "|".join(re.escape(n) for n in mentioned) +
+                r")\b\s+(?:slowly\s+| briefly\s+)?"
+                r"(looks?|glances?|stares?|gazes?)\s+"
+                r"(?:directly\s+|briefly\s+)?(?:at|toward|to)\s+"
                 r"(.+?)(?=[,;.]|$)",
                 sentence,
                 re.I,
@@ -1528,7 +1535,7 @@ def extract_character_specific_cues(story, character_name, all_character_names=N
                     n for n in mentioned
                     if n.casefold() != (actor or "").casefold()
                     and re.search(
-                        r"\\b(?:at|toward|to)\\s+" + re.escape(n) + r"\\b",
+                        r"\b(?:at|toward|to)\s+" + re.escape(n) + r"\b",
                         sentence,
                         re.I,
                     )
@@ -1541,9 +1548,9 @@ def extract_character_specific_cues(story, character_name, all_character_names=N
             # Clear physical contact: attribute the action to its grammatical
             # subject and give the named recipient a partner cue, not the action.
             contact_match = re.search(
-                r"\\b(" + "|".join(re.escape(n) for n in mentioned) +
-                r")\\b\\s+(grabs?|holds?|pushes?|pulls?|touches?|takes?|"
-                r"reaches? for|shakes hands with)\\s+(.+?)(?=[,;.]|$)",
+                r"\b(" + "|".join(re.escape(n) for n in mentioned) +
+                r")\b\s+(grabs?|holds?|pushes?|pulls?|touches?|takes?|"
+                r"reaches? for|shakes hands with)\s+(.+?)(?=[,;.]|$)",
                 sentence,
                 re.I,
             )
@@ -1565,7 +1572,9 @@ def extract_character_specific_cues(story, character_name, all_character_names=N
             if not classified:
                 ambiguous_actions.append(sentence[:240])
 
-    for raw_line in lines:
+    for line_index, raw_line in enumerate(lines):
+        if line_index < first_scene_index:
+            continue
         line = raw_line.strip()
         if not line:
             flush_action_block(pending_action)
@@ -1700,7 +1709,26 @@ def parse_screenplay(story, manually_entered_names=""):
         "CONTINUED", "CONT'D", "THE END", "MONTAGE", "DAY", "NIGHT", "LATER",
         "CONTINUOUS", "MORNING", "EVENING",
     }
+    # Ignore title, genre, cast-list and metadata lines before the screenplay
+    # body. Character speaker cues are collected from the first scene onward.
+    first_scene_index = next(
+        (i for i, candidate in enumerate(lines) if _SCENE_HEADING_RE.match(candidate.strip())),
+        None,
+    )
+    screenplay_marker_index = next(
+        (i for i, candidate in enumerate(lines) if candidate.strip().casefold() == "screenplay"),
+        None,
+    )
+    if first_scene_index is not None:
+        character_scan_start = first_scene_index
+    elif screenplay_marker_index is not None:
+        character_scan_start = screenplay_marker_index + 1
+    else:
+        character_scan_start = 0
+
     for line_index, line in enumerate(lines):
+        if line_index < character_scan_start:
+            continue
         stripped = line.strip()
         if not stripped or len(stripped) > 38:
             continue
@@ -1742,11 +1770,7 @@ def parse_screenplay(story, manually_entered_names=""):
             names.append(name)
 
     names = names[:20]
-    scene_heading_pattern = re.compile(
-        r"^\\s*(?:SCENE\\s+\\d+\\s*[-–—:]?\\s*)?(?:INT\\.|EXT\\.|INT/EXT\\.|INT\\./EXT\\.)",
-        re.I,
-    )
-    scene_count = sum(1 for line in lines if scene_heading_pattern.match(line))
+    scene_count = sum(1 for line in lines if _SCENE_HEADING_RE.match(line))
     character_profiles = []
     for name in names:
         cues, ambiguous = extract_character_specific_cues(story, name, names)
