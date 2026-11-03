@@ -1405,6 +1405,10 @@ AUDITION_TESTS = {
     "physical tension": "Recreate only the physical action written in the script. Check whether tension is legible without forcing or exaggerating it.",
     "visible expression changes (review manually)": "Perform the beat as written. Ask the reviewer to note the visible change and the exact moment it occurs; do not assume an emotion from the gesture alone.",
     "dialogue-heavy scene": "Read a representative passage with the scripted pauses and delivery directions. Review pace, intelligibility and consistency.",
+    "shared blocking / spatial relationship": "Recreate the relative positions and shared blocking with the scene partner. Review spacing, orientation and continuity for both performers.",
+    "gaze / eyeline direction": "Recreate the scripted eyeline toward each named scene partner. Review direction, timing and continuity without assuming an emotion.",
+    "interaction / reaction partner": "Play the moment as the named interaction or reaction partner. Review whether the response timing fits the other character's action and the scene context.",
+    "physical interaction / contact partner": "Rehearse the contact or interaction safely with the scene partner, checking timing, consent, continuity and the written action.",
 }
 
 CHARACTER_INTERPRETATIONS = {
@@ -1414,6 +1418,10 @@ CHARACTER_INTERPRETATIONS = {
     "physical tension": ("Visible physical tension", "Can tension be communicated through the specific written action without exaggeration?"),
     "visible expression changes (review manually)": ("Observable expression changes", "Can the performer make the written physical beat readable while keeping the interpretation open to the director?"),
     "dialogue-heavy scene": ("Dialogue-led performance", "Can the performer sustain the passage with clear phrasing, pace and the script's stated delivery?"),
+    "shared blocking / spatial relationship": ("Shared blocking / spatial relationship", "Can the performer maintain the written position, spacing and orientation relative to the scene partner?"),
+    "gaze / eyeline direction": ("Gaze / eyeline direction", "Does the performer direct their gaze toward the named character at the scripted moment, with consistent eyeline?"),
+    "interaction / reaction partner": ("Interaction / reaction partner", "Does the performer respond at the appropriate beat as the named recipient of the other character's action or gaze?"),
+    "physical interaction / contact partner": ("Physical interaction / contact partner", "Is the performer's part of the physical interaction clear, safe, consensual and consistent with the written action?"),
 }
 
 _ACTION_VERBS = {
@@ -1471,22 +1479,91 @@ def extract_character_specific_cues(story, character_name, all_character_names=N
         joined = " ".join(x.strip() for x in block if x.strip())
         for sentence in _split_sentences(joined):
             mentioned = [name for name, pattern in patterns.items() if pattern.search(sentence)]
+            if character_name.casefold() not in {name.casefold() for name in mentioned}:
+                continue
+
+            def add_item(label, hits, source):
+                evidence_by_label.setdefault(label, []).append({
+                    "excerpt": sentence[:320],
+                    "matched_words": hits[:4],
+                    "source": source,
+                })
+
             if len(mentioned) == 1:
-                owner = mentioned[0]
-                if owner.casefold() != character_name.casefold():
-                    continue
                 for label, hits in _cue_hits(sentence):
-                    if label == "dialogue-heavy scene":
-                        continue
-                    evidence_by_label.setdefault(label, []).append({
-                        "excerpt": sentence[:320],
-                        "matched_words": hits[:4],
-                        "source": "Explicitly named character in action text",
-                    })
-            elif len(mentioned) > 1:
-                # Do not assign shared action to every character.
-                if target_pattern.search(sentence):
-                    ambiguous_actions.append(sentence[:240])
+                    if label != "dialogue-heavy scene":
+                        add_item(label, hits, "Explicitly named character in action text")
+                continue
+
+            # Shared blocking: both explicitly named characters participate in
+            # the spatial arrangement, so each receives the same blocking cue.
+            blocking_pattern = re.compile(
+                r"\\b(?:sits?|sitting|sat|stands?|standing|stood|kneels?|kneeling|"
+                r"faces?|facing|stands? opposite|sits? opposite|next to|beside|"
+                r"across from|in front of|behind|side by side|approaches?|"
+                r"approach|meets?|meet)\\b",
+                re.I,
+            )
+            if blocking_pattern.search(sentence):
+                add_item(
+                    "shared blocking / spatial relationship",
+                    [blocking_pattern.search(sentence).group(0)],
+                    "Shared blocking explicitly names this character and another character",
+                )
+
+            # Directional gaze: attribute the action to the named subject, while
+            # recording the named recipient as the interaction/reaction partner.
+            gaze_match = re.search(
+                r"\\b(" + "|".join(re.escape(n) for n in mentioned) +
+                r")\\b\\s+(?:slowly\\s+| briefly\\s+)?"
+                r"(looks?|glances?|stares?|gazes?)\\s+"
+                r"(?:directly\\s+|briefly\\s+)?(?:at|toward|to)\\s+"
+                r"(.+?)(?=[,;.]|$)",
+                sentence,
+                re.I,
+            )
+            if gaze_match:
+                actor = next((n for n in mentioned if n.casefold() == gaze_match.group(1).casefold()), None)
+                recipients = [
+                    n for n in mentioned
+                    if n.casefold() != (actor or "").casefold()
+                    and re.search(
+                        r"\\b(?:at|toward|to)\\s+" + re.escape(n) + r"\\b",
+                        sentence,
+                        re.I,
+                    )
+                ]
+                if actor and actor.casefold() == character_name.casefold():
+                    add_item("gaze / eyeline direction", [gaze_match.group(2)], "Named character performs a directional gaze")
+                if any(n.casefold() == character_name.casefold() for n in recipients):
+                    add_item("interaction / reaction partner", ["is the named gaze target"], "Named as the recipient of another character's gaze")
+
+            # Clear physical contact: attribute the action to its grammatical
+            # subject and give the named recipient a partner cue, not the action.
+            contact_match = re.search(
+                r"\\b(" + "|".join(re.escape(n) for n in mentioned) +
+                r")\\b\\s+(grabs?|holds?|pushes?|pulls?|touches?|takes?|"
+                r"reaches? for|shakes hands with)\\s+(.+?)(?=[,;.]|$)",
+                sentence,
+                re.I,
+            )
+            if contact_match:
+                actor = next((n for n in mentioned if n.casefold() == contact_match.group(1).casefold()), None)
+                recipients = [
+                    n for n in mentioned
+                    if n.casefold() != (actor or "").casefold()
+                    and _character_name_pattern(n).search(contact_match.group(3))
+                ]
+                if actor and actor.casefold() == character_name.casefold():
+                    add_item("hand gestures", [contact_match.group(2)], "Named character performs a physical interaction")
+                if any(n.casefold() == character_name.casefold() for n in recipients):
+                    add_item("physical interaction / contact partner", ["is the named contact partner"], "Named as the recipient of another character's physical action")
+
+            # If the sentence names multiple characters but no relationship/action
+            # could be reliably parsed, retain it for manual review.
+            classified = bool(blocking_pattern.search(sentence) or gaze_match or contact_match)
+            if not classified:
+                ambiguous_actions.append(sentence[:240])
 
     for raw_line in lines:
         line = raw_line.strip()
@@ -2052,15 +2129,6 @@ with workflow_tabs[2]:
             key="rasa_custom_portrayal_brief",
             height=110,
         )
-        custom_review_text = st.text_area(
-            "Add your own human-review checklist points (optional)",
-            placeholder=(
-                "Add any specific things the director or casting team should review. "
-                "Enter one point per line."
-            ),
-            key="rasa_custom_portrayal_checklist",
-            height=100,
-        )
         review_guides = {
             "Sadness / grief": [
                 "Review whether facial changes, gaze and posture fit the scene context; do not treat lowered gaze or reduced movement as proof of sadness.",
@@ -2102,13 +2170,7 @@ with workflow_tabs[2]:
         if custom_portrayal.strip():
             st.markdown("**Director's custom portrayal brief**")
             st.markdown(custom_portrayal.strip())
-        custom_review_points = [
-            point.strip() for point in custom_review_text.splitlines() if point.strip()
-        ]
-        if custom_review_points:
-            st.markdown("**Additional director-defined review points**")
-            for point in custom_review_points:
-                st.markdown(f"- {point}")
+        custom_review_points = []
         st.session_state["rasa_character_emotion_brief"] = {
             "selected_portrayal": selected_portrayal,
             "custom_portrayal": custom_portrayal.strip(),
