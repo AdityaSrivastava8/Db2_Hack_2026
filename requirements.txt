@@ -9,3 +9,4 @@ fer==22.5.1
 tensorflow==2.19.1
 haystack-ai>=2.0,<3
 ibm_db>=3.2.6
+moviepy==1.0.3
