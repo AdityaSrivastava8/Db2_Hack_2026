@@ -2919,8 +2919,12 @@ with workflow_tabs[3]:
 
                 movement = sample.get("movement_since_previous_sample_index")
                 try:
-                    if movement is not None and pd.notna(movement):
+                    if movement is not None:
                         movement = float(movement)
+                        if movement != movement:  # Ignore NaN values without requiring pandas here.
+                            movement = None
+                        if movement is None:
+                            raise ValueError("Movement sample is not a number")
                         if movement < 0.005:
                             observations.append("tracked body landmarks changed very little since the previous sample")
                         elif movement < 0.015:
@@ -2931,7 +2935,7 @@ with workflow_tabs[3]:
                     pass
 
                 wrist_value = sample.get("wrist_above_shoulder")
-                if wrist_value is not None and pd.notna(wrist_value):
+                if wrist_value is not None:
                     observations.append(
                         "at least one wrist was above shoulder level" if bool(wrist_value)
                         else "no wrist was detected above shoulder level"
