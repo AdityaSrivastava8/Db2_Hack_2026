@@ -450,7 +450,7 @@ python -m streamlit run app.py
 
 Alternatively, reviewers can access the deployed application without performing the local installation:
 
-https://db2hack2026-9gfducsfracrhhqecjey2j.streamlit.app/
+[https://db2hack2026-9gfducsfracrhhqecjey2j.streamlit.app/](https://db2hack2026-evlwzj2bqjgxmrv2mzbtse.streamlit.app/)
 
 **Security Notice:** Never share your regular Gmail password or commit actual SMTP credentials or `secrets.toml` to GitHub. Each reviewer must configure their own credentials for local email OTP verification.
 
