@@ -20,20 +20,20 @@ workflow.
 
 ## Table of contents
 
--   [Project overview](#project-overview)
--   [Problem statement](#problem-statement)
--   [What RASA AI does](#what-rasa-ai-does)
--   [Application workflow](#application-workflow)
--   [Technology stack](#technology-stack)
--   [Project files](#project-files)
--   [Requirements and prerequisites](#requirements-and-prerequisites)
--   [Installation](#installation)
--   [Run the application](#run-the-application)
--   [Haystack retrieval](#haystack-retrieval)
--   [IBM Db2 integration](#ibm-db2-integration)
--   [Data storage and privacy](#data-storage-and-privacy)
--   [Known limitations](#known-limitations)
--   [Troubleshooting](#troubleshooting)
+- [Project overview](#project-overview)
+- [Problem statement](#problem-statement)
+- [What RASA AI does](#what-rasa-ai-does)
+- [Application workflow](#application-workflow)
+- [Technology stack](#technology-stack)
+- [Project files](#project-files)
+- [Requirements and prerequisites](#requirements-and-prerequisites)
+- [Local development setup](#local-development-setup)
+- [Run RASA AI locally](#run-rasa-ai-locally)
+- [Haystack retrieval](#haystack-retrieval)
+- [IBM Db2 integration](#ibm-db2-integration)
+- [Data storage and privacy](#data-storage-and-privacy)
+- [Known limitations](#known-limitations)
+- [Troubleshooting](#troubleshooting)
 
 ------------------------------------------------------------------------
 
